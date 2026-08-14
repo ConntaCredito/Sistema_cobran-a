@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { ArrowLeft, Building2, User } from 'lucide-react';
+import { ArrowLeft, Building2 } from 'lucide-react';
 
 export const CompanyDetails = () => {
   const { id } = useParams();

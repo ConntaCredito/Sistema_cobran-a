@@ -13,18 +13,18 @@ export const AnimeButton: React.FC<AnimeButtonProps> = ({ children, className = 
     if (!buttonRef.current) return;
 
     const scopeConstructor = (scope: any) => {
-      const circles = utils.$('.circle', buttonRef.current as HTMLElement);
+      const circles = buttonRef.current.querySelectorAll('.circle');
       if (!circles || circles.length === 0) return;
       
       if (scope.i === undefined || scope.i > circles.length - 1) scope.i = 0;
       const i = scope.i++;
       
-      utils.set(circles, {
+      utils.set(circles as any, {
         opacity: stagger([1, .25], { from: i, ease: 'out(3)' }),
       });
       
       createTimeline()
-        .add(circles, {
+        .add(circles as any, {
           scale: [{ to: [.5, 1], duration: 250 }, { to: .5, duration: 750 }],
           duration: 750,
           loop: true,

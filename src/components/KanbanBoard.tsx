@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, supabaseAdmin } from '../services/supabase';
+import { supabase } from '../services/supabase';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { User, FileText } from 'lucide-react';

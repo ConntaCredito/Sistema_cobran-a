@@ -7,7 +7,6 @@ import { CustomersList } from './pages/CustomersList';
 import { CompaniesList } from './pages/CompaniesList';
 import { CompanyDetails } from './pages/CompanyDetails';
 import { ContractsList } from './pages/ContractsList';
-import { History } from './pages/History';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { AuthProvider } from './contexts/AuthContext';
