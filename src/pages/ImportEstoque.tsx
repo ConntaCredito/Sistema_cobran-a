@@ -57,7 +57,10 @@ export const ImportEstoque = () => {
           };
 
           const rawCpf = getVal(['cpf', 'cnpj', 'documento', 'doc', 'doc_sacado']);
-          const cpf = rawCpf ? rawCpf.replace(/\D/g, '') : null;
+          let cpf = rawCpf ? rawCpf.replace(/\D/g, '') : null;
+          if (cpf && cpf.length > 11 && cpf.startsWith('000')) {
+             cpf = cpf.substring(cpf.length - 11);
+          }
           const nome = getVal(['nome', 'nome_cliente', 'cliente', 'razao', 'razao_social', 'nm_sacado']);
 
           return {
