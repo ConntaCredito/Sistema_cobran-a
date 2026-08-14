@@ -56,9 +56,9 @@ export const ImportEstoque = () => {
             return foundKey ? String(row[foundKey]) : null;
           };
 
-          const rawCpf = getVal(['cpf', 'cnpj', 'documento', 'doc']);
+          const rawCpf = getVal(['cpf', 'cnpj', 'documento', 'doc', 'doc_sacado']);
           const cpf = rawCpf ? rawCpf.replace(/\D/g, '') : null;
-          const nome = getVal(['nome', 'nome_cliente', 'cliente', 'razao', 'razao_social']);
+          const nome = getVal(['nome', 'nome_cliente', 'cliente', 'razao', 'razao_social', 'nm_sacado']);
 
           return {
             cpf: cpf,
