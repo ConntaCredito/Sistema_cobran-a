@@ -733,6 +733,26 @@ export const CustomerDetails = () => {
                 </div>
               </div>
             )}
+
+            {selectedContract.metadata && Object.keys(selectedContract.metadata).length > 0 && (
+              <div style={{ marginTop: '1.5rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                <div style={{ fontSize: '0.9rem', color: '#3b82f6', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileText size={16}/> Dados Detalhados da Importação (Origem)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                  {Object.entries(selectedContract.metadata).map(([key, value]: [string, any]) => (
+                    <div key={key} style={{ background: 'var(--color-bg)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
+                      <div className="text-muted" style={{ fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '0.2rem', letterSpacing: '0.5px' }}>
+                        {key.replace(/_/g, ' ')}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 500, wordBreak: 'break-word' }}>
+                        {value !== null && value !== '' ? String(value) : '-'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {selectedContract.notes && (
               <div style={{ marginTop: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
