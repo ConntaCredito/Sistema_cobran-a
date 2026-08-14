@@ -13,7 +13,7 @@ export const AnimeButton: React.FC<AnimeButtonProps> = ({ children, className = 
     if (!buttonRef.current) return;
 
     const scopeConstructor = (scope: any) => {
-      const circles = buttonRef.current.querySelectorAll('.circle');
+      const circles = buttonRef.current?.querySelectorAll('.circle');
       if (!circles || circles.length === 0) return;
       
       if (scope.i === undefined || scope.i > circles.length - 1) scope.i = 0;
