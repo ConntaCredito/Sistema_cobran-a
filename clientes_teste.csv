@@ -1,0 +1,6 @@
+cpf,nome_cliente,cnpj,nome_empresa,numero_contrato,valor_contratado,saldo_devedor,situacao
+11111111111,João Pedro Silva,00000000000191,Banco do Brasil,BDR-101,50000.00,25000.00,Regular
+11111111111,João Pedro Silva,00000000000191,Banco do Brasil,BDR-102,15000.00,0.00,Quitado
+22222222222,Maria Oliveira,11111111111111,Caixa Economica,BDR-201,120000.00,110000.00,Em atraso
+33333333333,Carlos Eduardo,00000000000191,Banco do Brasil,BDR-301,30000.00,15000.00,Divergente
+44444444444,Ana Paula Costa,11111111111111,Caixa Economica,BDR-401,5000.00,1000.00,Regular
