@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, FileUp, CheckCircle, Database } from 'lucide-react';
+import { Upload, FileUp, CheckCircle, Database, RefreshCw, Users, FileText } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
 export const ImportEstoque = () => {
@@ -9,6 +9,9 @@ export const ImportEstoque = () => {
   const [result, setResult] = useState<any | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0, percentage: 0 });
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<any | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -99,6 +102,98 @@ export const ImportEstoque = () => {
     }
   };
 
+  const syncEstoque = async () => {
+    setIsSyncing(true);
+    setSyncResult(null);
+
+    try {
+      // 1. Fetch available stock
+      const { data: estoqueList, error: fetchError } = await supabase
+        .from('estoque')
+        .select('*')
+        .eq('status', 'Disponível');
+
+      if (fetchError) throw fetchError;
+      if (!estoqueList || estoqueList.length === 0) {
+        alert('Nenhum registro no estoque para sincronizar.');
+        return;
+      }
+
+      let customersCreated = 0;
+      let contractsCreated = 0;
+
+      for (const item of estoqueList) {
+        if (!item.cpf) continue;
+        
+        // 2. Check if customer exists (avoid duplicate CPF)
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('cpf', item.cpf)
+          .single();
+
+        let customerId = existingCustomer?.id;
+
+        if (!customerId) {
+           // Insert new customer
+           const { data: newCustomer, error: insertError } = await supabase
+             .from('customers')
+             .insert({ cpf: item.cpf, full_name: item.nome || 'Cliente Desconhecido' })
+             .select('id')
+             .single();
+             
+           if (insertError) {
+             console.error('Erro ao criar cliente', insertError);
+             continue; // Skip se falhar a criação do cliente
+           }
+           customerId = newCustomer.id;
+           customersCreated++;
+        }
+
+        // 3. Create Contract
+        const payload = item.payload || {};
+        const getVal = (keys: string[]) => {
+            const foundKey = Object.keys(payload).find(k => keys.includes(k.toLowerCase().trim()));
+            return foundKey ? String(payload[foundKey]) : null;
+        };
+
+        const contractNumber = getVal(['contrato', 'numero_contrato', 'num_contrato']) || `ESTOQUE-${item.id.substring(0, 8)}`;
+        
+        const rawAmount = getVal(['valor', 'valor_divida', 'saldo', 'saldo_devedor', 'outstanding_balance']) || '0';
+        const cleanAmount = rawAmount.replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+        const amount = parseFloat(cleanAmount) || 0;
+
+        const { error: contractError } = await supabase
+          .from('contracts')
+          .insert({
+            customer_id: customerId,
+            contract_number: contractNumber,
+            contracted_amount: amount,
+            outstanding_balance: amount,
+            status: 'Ativo'
+          });
+
+        if (!contractError) {
+          contractsCreated++;
+        }
+
+        // 4. Mark as Synced
+        await supabase
+          .from('estoque')
+          .update({ status: 'Sincronizado' })
+          .eq('id', item.id);
+      }
+
+      setSyncResult({ customers: customersCreated, contracts: contractsCreated });
+
+    } catch (e) {
+      console.error(e);
+      alert('Falha ao sincronizar o estoque.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="main-content">
       <h1 className="mb-4">Importar Estoque (Base Fria)</h1>
@@ -186,11 +281,43 @@ export const ImportEstoque = () => {
             </div>
 
             <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
                 <Database size={16} /> 
                 Os dados foram armazenados de forma flexível na base apartada (Estoque).
               </div>
+
+              <button 
+                className="btn-primary" 
+                style={{ width: '100%', justifyContent: 'center', background: 'var(--color-accent)' }}
+                disabled={isSyncing}
+                onClick={syncEstoque}
+              >
+                {isSyncing ? (
+                  <><RefreshCw size={20} className="spin" /> Sincronizando Estoque...</>
+                ) : (
+                  <><RefreshCw size={20} /> Sincronizar Estoque para CRM</>
+                )}
+              </button>
             </div>
+            
+            {syncResult && (
+              <div className="mt-4 p-4 glass-card" style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                 <h3 className="mb-2" style={{ color: '#60a5fa', fontSize: '1.1rem' }}>Sincronização Concluída!</h3>
+                 <p className="text-muted" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>O estoque foi fundido com a sua base de clientes sem gerar CPFs duplicados.</p>
+                 
+                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <div className="text-muted" style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Users size={14} /> Novos Clientes Criados</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{syncResult.customers}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted" style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><FileText size={14} /> Novos Contratos Adicionados</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{syncResult.contracts}</div>
+                    </div>
+                 </div>
+              </div>
+            )}
+
           </div>
         )}
       </div>
