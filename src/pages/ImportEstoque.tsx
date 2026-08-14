@@ -148,8 +148,11 @@ export const ImportEstoque = () => {
               <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{ width: `${progress.percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s ease' }}></div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                ⏱️ Tempo decorrido: {Math.floor(elapsedSeconds / 60)}m {elapsedSeconds % 60}s
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                <span>⏱️ Decorrido: {Math.floor(elapsedSeconds / 60)}m {elapsedSeconds % 60}s</span>
+                {progress.current > 0 && progress.percentage < 100 && (
+                  <span>⏳ Falta aprox: {Math.floor(((elapsedSeconds / progress.current) * (progress.total - progress.current)) / 60)}m {Math.floor(((elapsedSeconds / progress.current) * (progress.total - progress.current)) % 60)}s</span>
+                )}
               </div>
             </div>
           )}
