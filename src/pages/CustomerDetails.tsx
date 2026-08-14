@@ -413,7 +413,7 @@ export const CustomerDetails = () => {
                         style={{ width: '100%', padding: '0.5rem', fontSize: '0.85rem', textAlign: 'center', cursor: 'pointer' }}
                       >
                         <option value="" disabled style={{ background: 'var(--color-bg-panel)' }}>Selecione um operador...</option>
-                        {allProfiles.map(p => (
+                        {allProfiles.filter(p => p.role !== 'ADMIN').map(p => (
                           <option key={p.id} value={p.id} style={{ background: 'var(--color-bg-panel)' }}>
                             {p.username}
                           </option>
@@ -432,7 +432,7 @@ export const CustomerDetails = () => {
                       style={{ padding: '0.5rem', fontSize: '0.85rem', textAlign: 'center', cursor: 'pointer' }}
                     >
                       <option value="" style={{ background: 'var(--color-bg-panel)', color: '#f59e0b' }}>-- Remover Dono --</option>
-                      {allProfiles.map(p => (
+                      {allProfiles.filter(p => p.role !== 'ADMIN').map(p => (
                         <option key={p.id} value={p.id} style={{ background: 'var(--color-bg-panel)' }}>
                           {p.username}
                         </option>
