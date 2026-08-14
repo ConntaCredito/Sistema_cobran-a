@@ -7,6 +7,7 @@ import { CustomersList } from './pages/CustomersList';
 import { CompaniesList } from './pages/CompaniesList';
 import { CompanyDetails } from './pages/CompanyDetails';
 import { ContractsList } from './pages/ContractsList';
+import { ImportEstoque } from './pages/ImportEstoque';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { AuthProvider } from './contexts/AuthContext';
@@ -39,6 +40,7 @@ function App() {
           <Route path="/companies" element={<ProtectedRoute><AppLayout><CompaniesList /></AppLayout></ProtectedRoute>} />
           <Route path="/company/:id" element={<ProtectedRoute><AppLayout><CompanyDetails /></AppLayout></ProtectedRoute>} />
           <Route path="/contracts" element={<ProtectedRoute><AppLayout><ContractsList /></AppLayout></ProtectedRoute>} />
+          <Route path="/estoque" element={<ProtectedRoute><AppLayout><ImportEstoque /></AppLayout></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>} />
           
           <Route path="*" element={<ProtectedRoute><AppLayout><div className="main-content"><h2>Em desenvolvimento...</h2></div></AppLayout></ProtectedRoute>} />

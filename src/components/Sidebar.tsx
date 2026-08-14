@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Search, Users, Building, FileText, Settings, ShieldCheck, RefreshCcw, LogOut } from 'lucide-react';
+import { LayoutDashboard, Search, Users, Building, FileText, Settings, ShieldCheck, RefreshCcw, LogOut, Database } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const Sidebar = () => {
@@ -37,9 +37,14 @@ export const Sidebar = () => {
         </NavLink>
 
         {profile?.role === 'ADMIN' && (
-          <NavLink to="/settings" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-            <ShieldCheck size={20} /> Gestão de Usuários
-          </NavLink>
+          <>
+            <NavLink to="/estoque" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+              <Database size={20} /> Base Estoque (Excel)
+            </NavLink>
+            <NavLink to="/settings" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+              <ShieldCheck size={20} /> Gestão de Usuários
+            </NavLink>
+          </>
         )}
         
         {profile?.role !== 'ADMIN' && (
