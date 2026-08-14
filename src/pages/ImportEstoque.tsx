@@ -7,6 +7,8 @@ export const ImportEstoque = () => {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0, percentage: 0 });
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -18,6 +20,13 @@ export const ImportEstoque = () => {
   const processImport = async () => {
     if (!file) return;
     setIsProcessing(true);
+    setProgress({ current: 0, total: 0, percentage: 0 });
+    setElapsedSeconds(0);
+
+    const startTime = Date.now();
+    const timerInterval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
 
     try {
       const data = await file.arrayBuffer();
@@ -27,6 +36,8 @@ export const ImportEstoque = () => {
       const rows = XLSX.utils.sheet_to_json(worksheet) as any[];
 
       const totalRows = rows.length;
+      setProgress({ current: 0, total: totalRows, percentage: 0 });
+
       let validRows = 0;
       let errors = 0;
 
@@ -63,6 +74,13 @@ export const ImportEstoque = () => {
         } else {
           validRows += batch.length;
         }
+
+        const currentProcessed = Math.min(i + batchSize, totalRows);
+        setProgress({
+          current: currentProcessed,
+          total: totalRows,
+          percentage: Math.round((currentProcessed / totalRows) * 100)
+        });
       }
 
       setResult({
@@ -76,6 +94,7 @@ export const ImportEstoque = () => {
       console.error(e);
       alert('Falha crítica na importação do Excel.');
     } finally {
+      clearInterval(timerInterval);
       setIsProcessing(false);
     }
   };
@@ -119,6 +138,21 @@ export const ImportEstoque = () => {
           >
             {isProcessing ? 'Lendo Excel e Gravando no Estoque...' : 'Iniciar Importação de Estoque'}
           </button>
+
+          {isProcessing && (
+            <div className="mt-4 p-4 glass-card" style={{ background: 'rgba(255,255,255,0.02)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                <span className="text-muted">Progresso: {progress.current} / {progress.total}</span>
+                <span className="text-primary" style={{ fontWeight: 'bold' }}>{progress.percentage}%</span>
+              </div>
+              <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ width: `${progress.percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s ease' }}></div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                ⏱️ Tempo decorrido: {Math.floor(elapsedSeconds / 60)}m {elapsedSeconds % 60}s
+              </div>
+            </div>
+          )}
         </div>
 
         {result && (
