@@ -26,7 +26,6 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
     if (rawData && rawData.length > 0) {
       const mappedData = rawData.filter(c => c.contracts && c.contracts.length > 0).map(customer => {
         const contracts = customer.contracts || [];
-        
         let overallStatus = 'INITIAL';
         
         if (customer.collection_history && customer.collection_history.length > 0) {
@@ -45,23 +44,36 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
            else if (latestPhase) overallStatus = latestPhase;
         }
 
-        // Retro-compatibilidade: corrigir Kanban para clientes que tiveram contrato marcado manualmente no passado
-        if (contracts && contracts.length > 0) {
-           const hasQuitado = contracts.some((c: any) => c.status === 'Quitado');
-           const hasPromessa = contracts.some((c: any) => c.status === 'Promessa de Pagamento');
-           
-           if (hasQuitado && overallStatus !== 'Pagamento realizado') {
-               overallStatus = 'Pagamento realizado';
-           } else if (hasPromessa && overallStatus !== 'Pagamento realizado' && overallStatus !== 'Promessa de Pagamento') {
-               overallStatus = 'Promessa de Pagamento';
+        let isDesligado = false;
+        let isAfastado = false;
+
+        const totalDebt = contracts.reduce((acc: number, curr: any) => {
+           if (curr.dismissal_date) isDesligado = true;
+           if (curr.metadata && typeof curr.metadata.tipo_evento === 'string') {
+              const evt = curr.metadata.tipo_evento.toLowerCase();
+              if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
+              if (evt.includes('afastamento')) isAfastado = true;
            }
+
+           const status = String(curr.status).toLowerCase();
+           if (status !== 'quitado' && status !== 'regular') {
+              return acc + (Number(curr.outstanding_balance) || 0);
+           }
+           return acc;
+        }, 0);
+
+        const hasQuitado = contracts.some((c: any) => String(c.status).toLowerCase() === 'quitado');
+        const hasPromessa = contracts.some((c: any) => String(c.status).toLowerCase() === 'promessa de pagamento');
+
+        if (hasQuitado && overallStatus !== 'Pagamento realizado') {
+            overallStatus = 'Pagamento realizado';
+        } else if (hasPromessa && overallStatus !== 'Pagamento realizado' && overallStatus !== 'Promessa de Pagamento') {
+            overallStatus = 'Promessa de Pagamento';
         }
 
         if (!COLUMNS.find(c => c.id === overallStatus)) {
            overallStatus = 'INITIAL';
         }
-
-        const totalDebt = contracts.reduce((acc: number, curr: any) => acc + (Number(curr.outstanding_balance) || 0), 0);
     
         return {
           ...customer,
@@ -69,7 +81,9 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
           latestPhase: customer.collection_history?.[0]?.phase || 'Sem Registro',
           return_date: customer.return_date,
           totalDebt,
-          contractCount: contracts.length
+          contractCount: contracts.length,
+          isDesligado,
+          isAfastado
         };
       });
       setBoardData(mappedData);
@@ -188,9 +202,13 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
                               <FileText size={12} /> {customer.contractCount} contrato{customer.contractCount > 1 ? 's' : ''}
                             </div>
                             
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                              {customer.phone && <span title={customer.phone}>📞</span>}
-                              {customer.email && <span title={customer.email}>✉️</span>}
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              {customer.phone && (
+                                <span style={{ fontSize: '0.75rem', background: '#e5e7eb', color: '#374151', padding: '0.1rem 0.4rem', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                  📞 {customer.phone}
+                                </span>
+                              )}
+                              {customer.email && <span title={customer.email} style={{ cursor: 'help' }}>✉️</span>}
                               
                               {customer.latestPhase === 'Sem condições de pagamento/sem previsão' && (
                                 <span style={{ fontSize: '0.65rem', background: '#fee2e2', color: '#b91c1c', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 'bold' }}>
@@ -201,6 +219,18 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
                               {customer.return_date && (
                                 <span style={{ fontSize: '0.65rem', background: '#dbeafe', color: '#1d4ed8', padding: '0.1rem 0.3rem', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.2rem', fontWeight: 'bold' }}>
                                   📅 {new Date(customer.return_date).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                                </span>
+                              )}
+                              
+                              {customer.isDesligado && (
+                                <span style={{ fontSize: '0.65rem', background: '#fee2e2', color: '#b91c1c', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 'bold', border: '1px solid #fca5a5' }}>
+                                  DESLIGADO
+                                </span>
+                              )}
+
+                              {customer.isAfastado && !customer.isDesligado && (
+                                <span style={{ fontSize: '0.65rem', background: '#fef3c7', color: '#b45309', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 'bold', border: '1px solid #fde68a' }}>
+                                  AFASTADO
                                 </span>
                               )}
                             </div>

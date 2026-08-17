@@ -23,41 +23,66 @@ export const Dashboard = () => {
   });
 
   const [statusData, setStatusData] = useState<any[]>([]);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     async function fetchStats() {
       if (!profile) return;
+      setErrorMsg('');
       
       let allData: any[] = [];
       let from = 0;
-      const limit = 1000;
+      const limit = 150;
       let hasMore = true;
 
       while (hasMore) {
         const to = from + limit - 1;
-        let query = supabase.from('customers').select(`
-          owner_id,
-          contracts (contracted_amount, outstanding_balance, status, source_system, contract_number),
-          collection_history ( phase, created_at )
-        `).range(from, to);
+        let query = supabase.from('customers').select('id, owner_id').range(from, to);
         
         if (profile.role !== 'ADMIN') {
-          query = query.eq('owner_id', profile.id);
+          query = query.or(`owner_id.eq.${profile.id},owner_id.is.null`);
         }
 
-        const { data, error } = await query;
+        const { data: custData, error: custErr } = await query;
         
-        if (error) {
-          console.error("Erro ao buscar stats:", error);
+        if (custErr) {
+          console.error("Erro ao buscar stats:", custErr);
+          setErrorMsg(custErr.message);
           break;
         }
 
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          if (data.length < limit) {
+        if (custData && custData.length > 0) {
+          try {
+            const customerIds = custData.map(c => c.id);
+            
+            const [contractsRes, historyRes] = await Promise.all([
+              supabase.from('contracts').select('customer_id, contracted_amount, outstanding_balance, status, source_system, contract_number').in('customer_id', customerIds),
+              supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
+            ]);
+            
+            if (contractsRes.error) throw contractsRes.error;
+            if (historyRes.error) throw historyRes.error;
+            
+            const contractsData = contractsRes.data;
+            const historyData = historyRes.data;
+            
+            const mergedData = custData.map(c => ({
+              ...c,
+              contracts: contractsData?.filter(ct => ct.customer_id === c.id) || [],
+              collection_history: historyData?.filter(h => h.customer_id === c.id) || []
+            }));
+            
+            allData = [...allData, ...mergedData];
+            if (custData.length < limit) {
+              hasMore = false;
+            } else {
+              from += limit;
+            }
+          } catch (e: any) {
+            console.error("Erro no Promise.all:", e);
+            setErrorMsg(e.message);
             hasMore = false;
-          } else {
-            from += limit;
+            break;
           }
         } else {
           hasMore = false;
@@ -120,7 +145,11 @@ export const Dashboard = () => {
                 const valAberto = Number(base.outstanding_balance) || 0;
                 
                 custContracted += valContratado;
-                custBalance += valAberto;
+                
+                const statusStr = String(base.status).toLowerCase();
+                if (statusStr !== 'quitado' && statusStr !== 'regular') {
+                   custBalance += valAberto;
+                }
               });
            }
 
@@ -171,7 +200,14 @@ export const Dashboard = () => {
 
   return (
     <div>
-      <h1 className="mb-4">Inteligência Financeira</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+        <h1 style={{ margin: 0 }}>Inteligência Financeira</h1>
+        {errorMsg && (
+          <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600 }}>
+            Erro ao buscar dados: {errorMsg}
+          </div>
+        )}
+      </div>
       
       {/* KPIs Principais */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>

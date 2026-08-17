@@ -23,25 +23,19 @@ export const CustomersList = () => {
 
       let allData: any[] = [];
       let page = 0;
-      const pageSize = 1000;
+      const pageSize = 150;
       let hasMore = true;
 
       while (hasMore) {
         setProgressMsg(`Carregando base de dados... (${allData.length} registros)`);
         let query = supabase
           .from('customers')
-          .select(`
-            id, cpf, full_name, phone, email, return_date, profiles(username),
-            contracts (
-              id, contract_number, status, contracted_amount, outstanding_balance, source_system, companies ( razao_social )
-            ),
-            collection_history ( phase, created_at )
-          `)
+          .select('id, cpf, full_name, phone, email, return_date, owner_id, profiles(username)')
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
           
         if (!isAdmin) {
-          query = query.eq('owner_id', profile.id);
+          query = query.or(`owner_id.eq.${profile.id},owner_id.is.null`);
         }
         
         if (searchTerm.trim().length > 0) {
@@ -55,11 +49,44 @@ export const CustomersList = () => {
           }
         }
         
-        const { data } = await query;
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          page++;
-          if (data.length < pageSize) hasMore = false;
+        const { data: custData, error } = await query;
+        if (error) {
+           console.error("ERRO GRAVE AO BUSCAR:", error);
+           setProgressMsg(`Erro: ${error.message}`);
+           hasMore = false;
+           break;
+        }
+        
+        if (custData && custData.length > 0) {
+          try {
+            const customerIds = custData.map(c => c.id);
+            
+            const [contractsRes, historyRes] = await Promise.all([
+              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, metadata, dismissal_date, companies ( razao_social )').in('customer_id', customerIds),
+              supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
+            ]);
+            
+            if (contractsRes.error) throw contractsRes.error;
+            if (historyRes.error) throw historyRes.error;
+            
+            const contractsData = contractsRes.data;
+            const historyData = historyRes.data;
+
+            const mergedData = custData.map(c => ({
+              ...c,
+              contracts: contractsData?.filter(ct => ct.customer_id === c.id) || [],
+              collection_history: historyData?.filter(h => h.customer_id === c.id) || []
+            }));
+
+            allData = [...allData, ...mergedData];
+            page++;
+            if (custData.length < pageSize) hasMore = false;
+          } catch (e: any) {
+            console.error("Erro ao buscar dependências:", e);
+            setProgressMsg(`Erro na busca: ${e.message}`);
+            hasMore = false;
+            break;
+          }
         } else {
           hasMore = false;
         }

@@ -224,7 +224,13 @@ export const CustomerDetails = () => {
     }
   };
 
-  const totalBalance = contracts.reduce((acc, curr) => acc + Number(curr.outstanding_balance), 0);
+  const totalBalance = contracts.reduce((acc, curr) => {
+    const status = String(curr.status).toLowerCase();
+    if (status !== 'quitado' && status !== 'regular') {
+      return acc + Number(curr.outstanding_balance);
+    }
+    return acc;
+  }, 0);
 
   let qualLabel = '🟢 Regular';
   let qualColor = 'var(--color-success)';
@@ -251,6 +257,17 @@ export const CustomerDetails = () => {
     qualColor = 'var(--color-text-muted)';
     qualBg = 'rgba(255, 255, 255, 0.05)';
   }
+  
+  let isDesligado = false;
+  let isAfastado = false;
+  contracts.forEach(c => {
+    if (c.dismissal_date) isDesligado = true;
+    if (c.metadata && typeof c.metadata.tipo_evento === 'string') {
+      const evt = c.metadata.tipo_evento.toLowerCase();
+      if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
+      if (evt.includes('afastamento')) isAfastado = true;
+    }
+  });
 
   const handleStatusChange = async (contractId: string, newStatus: string) => {
     const { error } = await supabaseAdmin.from('contracts').update({ status: newStatus }).eq('id', contractId);
@@ -320,17 +337,29 @@ export const CustomerDetails = () => {
             </div>
 
             {/* Tag de Qualificação */}
-            <div style={{ 
-              background: qualBg, 
-              color: qualColor, 
-              padding: '0.5rem 1rem', 
-              borderRadius: '2rem', 
-              fontWeight: 'bold', 
-              fontSize: '0.9rem',
-              marginBottom: '1.5rem',
-              border: `1px solid ${qualColor}40`
-            }}>
-              {qualLabel}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ 
+                background: qualBg, 
+                color: qualColor, 
+                padding: '0.5rem 1rem', 
+                borderRadius: '2rem', 
+                fontWeight: 'bold', 
+                fontSize: '0.9rem',
+                border: `1px solid ${qualColor}40`
+              }}>
+                {qualLabel}
+              </div>
+              
+              {isDesligado && (
+                <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 'bold', fontSize: '0.9rem', border: '1px solid #fca5a5' }}>
+                  DESLIGADO
+                </div>
+              )}
+              {isAfastado && !isDesligado && (
+                <div style={{ background: '#fef3c7', color: '#b45309', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 'bold', fontSize: '0.9rem', border: '1px solid #fde68a' }}>
+                  AFASTADO
+                </div>
+              )}
             </div>
 
             {customer.additional_contacts && Object.keys(customer.additional_contacts).length > 0 && (
@@ -499,20 +528,7 @@ export const CustomerDetails = () => {
                   </div>
                 </div>
 
-                {/* Exibição compacta dos dados brutos dentro do card da lista */}
-                {contract.metadata && Object.keys(contract.metadata).length > 0 && (
-                  <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--color-border)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                    {Object.entries(contract.metadata).map(([key, value]: [string, any]) => {
-                       if (['cpf', 'cnpj', 'doc_sacado', 'nm_sacado', 'nome', 'valor', 'saldo', 'contrato', 'nm_cessao', 'vl_face', 'status'].includes(key.toLowerCase())) return null;
-                       if (value === null || value === '') return null;
-                       return (
-                         <div key={key} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem' }}>
-                           <strong style={{ color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}:</strong> {String(value)}
-                         </div>
-                       )
-                    })}
-                  </div>
-                )}
+                {/* Metadata removido do card principal a pedido do usuário. Só visível no modal flutuante. */}
               </div>
             ))}
             
