@@ -62,7 +62,7 @@ export const CustomersList = () => {
             const customerIds = custData.map(c => c.id);
             
             const [contractsRes, historyRes] = await Promise.all([
-              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, metadata, dismissal_date, companies ( razao_social )').in('customer_id', customerIds),
+              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, metadata, due_date, dismissal_date, companies ( razao_social )').in('customer_id', customerIds),
               supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
             ]);
             
@@ -94,24 +94,51 @@ export const CustomersList = () => {
       
       setProgressMsg('Processando layout...');
 
+      const now = new Date();
+
+      const isContractOverdue = (c: any): boolean => {
+        const status = String(c.status || '').toLowerCase();
+        // Quitado nunca é vencido
+        if (status === 'quitado' || status === 'regular') return false;
+
+        // Tenta data direta
+        if (c.due_date && new Date(c.due_date).getFullYear() > 1970) {
+          return new Date(c.due_date) < now;
+        }
+
+        // Tenta serial Excel da planilha BDR
+        const meta = c.metadata || {};
+        const serial = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'] || meta['DT VENC AJUSTADO'];
+        if (serial && !isNaN(Number(serial)) && Number(serial) > 30000 && Number(serial) < 60000) {
+          const days = Math.floor(Number(serial) - 25569);
+          const due = new Date(days * 86400 * 1000);
+          return due < now;
+        }
+
+        // Se tiver status explícito de atraso, considera vencido
+        return status === 'em atraso' || status === 'divergente' || status === 'promessa de pagamento';
+      };
+
       if (allData.length >= 0) {
-        const consolidatedCustomers = allData.map((customer: any) => {
-          if (!customer.contracts || customer.contracts.length === 0) return customer;
-          
-          const grouped: Record<string, any[]> = {};
-          customer.contracts.forEach((c: any) => {
-            if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
-            grouped[c.contract_number].push(c);
-          });
-          
-          const consolidatedContracts: any[] = [];
-          Object.values(grouped).forEach(group => {
-            if (group.length === 1) {
-              consolidatedContracts.push(group[0]);
-            } else {
+        const consolidatedCustomers = allData
+          .map((customer: any) => {
+            if (!customer.contracts || customer.contracts.length === 0) return null;
+
+            const grouped: Record<string, any[]> = {};
+            customer.contracts.forEach((c: any) => {
+              if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
+              grouped[c.contract_number].push(c);
+            });
+
+            const consolidatedContracts: any[] = [];
+            Object.values(grouped).forEach(group => {
               const bdr = group.find((c: any) => c.source_system === 'BDR');
               const cordel = group.find((c: any) => c.source_system === 'CORDEL');
               const base = cordel || bdr || group[0];
+
+              // Só inclui contratos que estão em atraso pela data
+              if (!isContractOverdue(base)) return;
+
               let isDivergent = false;
               if (bdr && cordel) {
                 if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
@@ -122,12 +149,15 @@ export const CustomersList = () => {
                 ...base,
                 status: isDivergent ? 'Divergente' : base.status
               });
-            }
-          });
-          
-          return { ...customer, contracts: consolidatedContracts };
-        });
-        
+            });
+
+            // Cliente sem nenhum contrato vencido → excluir da lista
+            if (consolidatedContracts.length === 0) return null;
+
+            return { ...customer, contracts: consolidatedContracts };
+          })
+          .filter(Boolean); // remove os nulls
+
         setCustomers(consolidatedCustomers);
       }
       setLoading(false);
