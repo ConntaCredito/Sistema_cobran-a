@@ -62,7 +62,7 @@ export const CustomersList = () => {
             const customerIds = custData.map(c => c.id);
             
             const [contractsRes, historyRes] = await Promise.all([
-              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata->dt_venc_origem, metadata->dt_venc_ajustado, metadata->entrada_afastamento/rescisao, metadata->dt_desligamento, metadata->tipo_evento, companies ( razao_social )').in('customer_id', customerIds),
+              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, companies ( razao_social )').in('customer_id', customerIds),
               supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
             ]);
             
