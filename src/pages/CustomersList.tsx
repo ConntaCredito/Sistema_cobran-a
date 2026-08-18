@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
 import { KanbanBoard } from '../components/KanbanBoard';
-import { List, LayoutDashboard } from 'lucide-react';
+import { List, LayoutDashboard, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const CustomersList = () => {
@@ -19,6 +19,25 @@ export const CustomersList = () => {
   useEffect(() => {
     async function fetchCustomers() {
       if (!profile) return;
+      
+      const CACHE_KEY = `customers_list_v1_${profile.id}_${fundFilter}`;
+      const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+      // Só usamos cache se não houver termo de busca (para a lista principal)
+      if (!searchTerm.trim()) {
+        try {
+          const cached = sessionStorage.getItem(CACHE_KEY);
+          if (cached) {
+            const { ts, data } = JSON.parse(cached);
+            if (Date.now() - ts < CACHE_TTL) {
+              setCustomers(data);
+              setLoading(false);
+              return; // Sai cedo, instantâneo!
+            }
+          }
+        } catch (_) {}
+      }
+
       setLoading(true);
 
       const isAdmin = profile.role === 'ADMIN';
@@ -165,6 +184,13 @@ export const CustomersList = () => {
           .filter(Boolean);
 
         setCustomers(consolidatedCustomers);
+
+        // Salvar no cache apenas se não houver busca ativa
+        if (!searchTerm.trim()) {
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: consolidatedCustomers }));
+          } catch (_) {}
+        }
       }
       setLoading(false);
       setProgressMsg('');
@@ -195,16 +221,31 @@ export const CustomersList = () => {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
 
-          <select 
-            className="input-field" 
-            value={fundFilter}
-            onChange={(e) => setFundFilter(e.target.value as any)}
-            style={{ minWidth: '150px' }}
-          >
-            <option value="Todos">Todos os Fundos</option>
-            <option value="Alcar">Fundo Alcar</option>
-            <option value="Alpha">Fundo Alpha</option>
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <select 
+              className="input-field" 
+              value={fundFilter}
+              onChange={(e) => setFundFilter(e.target.value as any)}
+              style={{ minWidth: '150px' }}
+            >
+              <option value="Todos">Todos os Fundos</option>
+              <option value="Alcar">Fundo Alcar</option>
+              <option value="Alpha">Fundo Alpha</option>
+            </select>
+            
+            <button 
+              className="btn-secondary"
+              onClick={() => {
+                sessionStorage.removeItem(`customers_list_v1_${profile?.id}_${fundFilter}`);
+                setSearchTerm(searchTerm + ' '); // trick to trigger refresh
+                setTimeout(() => setSearchTerm(searchTerm.trim()), 100);
+              }}
+              title="Forçar atualização dos dados"
+              style={{ padding: '0.65rem' }}
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
           
           {(loading || progressMsg) && (
             <div style={{ 
