@@ -45,22 +45,21 @@ export const Dashboard = () => {
         }
       } catch (_) {}
 
-      // Busca direto nos contratos em atraso — sem loop de páginas de customers
+      // Busca direto nos contratos relevantes — sem loop de páginas de customers
       let contractsQuery = supabase
         .from('contracts')
-        .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata->dt_venc_origem, metadata->dt_venc_ajustado')
-        .or('status.eq.Em atraso,status.eq.Promessa de Pagamento,status.eq.Divergente,status.eq.Quitado');
+        .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata')
+        .in('status', ['Em atraso', 'Promessa de Pagamento', 'Divergente', 'Quitado']);
 
       // Filtro por carteira se não for ADMIN
       let allData: any[] = [];
       if (profile.role !== 'ADMIN') {
-        // Busca apenas os customer_ids do operador
         const { data: myCusts } = await supabase
           .from('customers')
           .select('id')
           .or(`owner_id.eq.${profile.id},owner_id.is.null`);
         const ids = (myCusts || []).map((c: any) => c.id);
-        if (ids.length === 0) { return; }
+        if (ids.length === 0) return;
         contractsQuery = contractsQuery.in('customer_id', ids);
       }
 
@@ -78,7 +77,7 @@ export const Dashboard = () => {
       const contractsData = contractsRes.data || [];
       const historyData   = historyRes.data || [];
 
-      // Agrupa contratos por customer_id para montar allData
+      // Agrupa contratos por customer_id
       const customerMap: Record<string, any> = {};
       contractsData.forEach((c: any) => {
         if (!customerMap[c.customer_id]) customerMap[c.customer_id] = { id: c.customer_id, contracts: [], collection_history: [] };
@@ -88,7 +87,6 @@ export const Dashboard = () => {
         if (customerMap[h.customer_id]) customerMap[h.customer_id].collection_history.push(h);
       });
       allData = Object.values(customerMap);
-
 
       if (allData.length > 0) {
         let totalContractsNum = 0;
