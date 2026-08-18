@@ -18,80 +18,123 @@ export const CustomersList = () => {
     async function fetchCustomers() {
       if (!profile) return;
       setLoading(true);
-      
+
       const isAdmin = profile.role === 'ADMIN';
 
-      let allData: any[] = [];
-      let page = 0;
-      const pageSize = 500;
-      let hasMore = true;
+      try {
+        setProgressMsg('Buscando clientes com contratos vencidos...');
 
-      while (hasMore) {
-        setProgressMsg(`Carregando base de dados... (${allData.length} registros)`);
-        let query = supabase
-          .from('customers')
-          .select('id, cpf, full_name, phone, email, return_date, owner_id, profiles(username)')
-          .order('created_at', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-          
+        // PASSO 1: Busca apenas os customer_ids com contratos vencidos (via view do banco)
+        let overdueQuery = supabase.from('overdue_customers').select('customer_id');
         if (!isAdmin) {
-          query = query.or(`owner_id.eq.${profile.id},owner_id.is.null`);
-        }
-        
-        if (searchTerm.trim().length > 0) {
-          const term = searchTerm.trim();
-          const onlyNumbers = term.replace(/\D/g, '');
-          
-          if (onlyNumbers.length > 0) {
-            query = query.or(`full_name.ilike.%${term}%,cpf.ilike.%${term}%,cpf.ilike.%${onlyNumbers}%`);
-          } else {
-            query = query.or(`full_name.ilike.%${term}%`);
+          // Para não-admin: filtra pelos clientes da carteira do operador
+          const { data: myCusts } = await supabase
+            .from('customers')
+            .select('id')
+            .or(`owner_id.eq.${profile.id},owner_id.is.null`);
+          const myIds = (myCusts || []).map((c: any) => c.id);
+          if (myIds.length === 0) {
+            setCustomers([]);
+            setLoading(false);
+            setProgressMsg('');
+            return;
           }
+          overdueQuery = overdueQuery.in('customer_id', myIds);
         }
-        
-        const { data: custData, error } = await query;
-        if (error) {
-           console.error("ERRO GRAVE AO BUSCAR:", error);
-           setProgressMsg(`Erro: ${error.message}`);
-           hasMore = false;
-           break;
+
+        const { data: overdueRows, error: overdueErr } = await overdueQuery;
+        if (overdueErr) {
+          // Fallback: se a view não existir ainda, usa o método anterior
+          console.warn('View overdue_customers não encontrada, usando fallback:', overdueErr.message);
+          setProgressMsg('Carregando clientes (modo fallback)...');
         }
-        
-        if (custData && custData.length > 0) {
-          try {
+
+        let overdueCustomerIds: string[] = [];
+        if (overdueRows && overdueRows.length > 0) {
+          overdueCustomerIds = overdueRows.map((r: any) => r.customer_id);
+        } else if (!overdueErr) {
+          // View funcionou mas sem resultados
+          setCustomers([]);
+          setLoading(false);
+          setProgressMsg('');
+          return;
+        }
+
+        // PASSO 2: Busca os clientes filtrados + contratos + histórico em paralelo
+        let allData: any[] = [];
+        const pageSize = 500;
+
+        // Se temos IDs da view, filtra diretamente; senão fallback sem filtro de vencimento
+        const buildCustQuery = (from: number, to: number) => {
+          let q = supabase
+            .from('customers')
+            .select('id, cpf, full_name, phone, email, return_date, owner_id, profiles(username)')
+            .order('created_at', { ascending: false })
+            .range(from, to);
+
+          if (overdueCustomerIds.length > 0) {
+            q = q.in('id', overdueCustomerIds);
+          }
+          if (!isAdmin && overdueCustomerIds.length === 0) {
+            q = q.or(`owner_id.eq.${profile.id},owner_id.is.null`);
+          }
+          if (searchTerm.trim().length > 0) {
+            const term = searchTerm.trim();
+            const onlyNumbers = term.replace(/\D/g, '');
+            if (onlyNumbers.length > 0) {
+              q = q.or(`full_name.ilike.%${term}%,cpf.ilike.%${term}%,cpf.ilike.%${onlyNumbers}%`);
+            } else {
+              q = q.or(`full_name.ilike.%${term}%`);
+            }
+          }
+          return q;
+        };
+
+        let page = 0;
+        let hasMore = true;
+        while (hasMore) {
+          setProgressMsg(`Carregando clientes... (${allData.length} carregados)`);
+          const { data: custData, error } = await buildCustQuery(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (error) {
+            setProgressMsg(`Erro: ${error.message}`);
+            hasMore = false;
+            break;
+          }
+
+          if (custData && custData.length > 0) {
             const customerIds = custData.map(c => c.id);
-            
+
             const [contractsRes, historyRes] = await Promise.all([
               supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, companies ( razao_social )').in('customer_id', customerIds),
               supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
             ]);
-            
+
             if (contractsRes.error) throw contractsRes.error;
             if (historyRes.error) throw historyRes.error;
-            
-            const contractsData = contractsRes.data;
-            const historyData = historyRes.data;
 
             const mergedData = custData.map(c => ({
               ...c,
-              contracts: contractsData?.filter(ct => ct.customer_id === c.id) || [],
-              collection_history: historyData?.filter(h => h.customer_id === c.id) || []
+              contracts: contractsRes.data?.filter(ct => ct.customer_id === c.id) || [],
+              collection_history: historyRes.data?.filter(h => h.customer_id === c.id) || []
             }));
 
             allData = [...allData, ...mergedData];
             page++;
             if (custData.length < pageSize) hasMore = false;
-          } catch (e: any) {
-            console.error("Erro ao buscar dependências:", e);
-            setProgressMsg(`Erro na busca: ${e.message}`);
+          } else {
             hasMore = false;
-            break;
           }
-        } else {
-          hasMore = false;
         }
+
+      } catch (e: any) {
+        console.error('Erro ao buscar clientes:', e);
+        setProgressMsg(`Erro: ${e.message}`);
+        setLoading(false);
+        return;
       }
-      
+
+
       setProgressMsg('Processando layout...');
 
       const now = new Date();
