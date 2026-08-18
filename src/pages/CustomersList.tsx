@@ -23,114 +23,66 @@ export const CustomersList = () => {
       let allData: any[] = [];
 
       try {
-        setProgressMsg('Buscando clientes com contratos vencidos...');
+        let page = 0;
+        const pageSize = 500;
+        let hasMore = true;
 
-        // PASSO 1: Busca apenas os customer_ids com contratos vencidos (via view do banco)
-        let overdueQuery = supabase.from('overdue_customers').select('customer_id');
-        if (!isAdmin) {
-          // Para não-admin: filtra pelos clientes da carteira do operador
-          const { data: myCusts } = await supabase
-            .from('customers')
-            .select('id')
-            .or(`owner_id.eq.${profile.id},owner_id.is.null`);
-          const myIds = (myCusts || []).map((c: any) => c.id);
-          if (myIds.length === 0) {
-            setCustomers([]);
-            setLoading(false);
-            setProgressMsg('');
-            return;
-          }
-          overdueQuery = overdueQuery.in('customer_id', myIds);
-        }
-
-        const { data: overdueRows, error: overdueErr } = await overdueQuery;
-        if (overdueErr) {
-          // Fallback: se a view não existir ainda, usa o método anterior
-          console.warn('View overdue_customers não encontrada, usando fallback:', overdueErr.message);
-          setProgressMsg('Carregando clientes (modo fallback)...');
-        }
-
-        let overdueCustomerIds: string[] = [];
-        if (overdueRows && overdueRows.length > 0) {
-          overdueCustomerIds = overdueRows.map((r: any) => r.customer_id);
-        } else if (!overdueErr) {
-          // View funcionou mas sem resultados
-          setCustomers([]);
-          setLoading(false);
-          setProgressMsg('');
-          return;
-        }
-
-        // PASSO 2: Busca clientes em chunks (Supabase tem limite ~1000 no .in())
-        const CHUNK_SIZE = 500;
-
-        const buildCustQuery = (ids: string[]) => {
-          let q = supabase
+        while (hasMore) {
+          setProgressMsg(`Carregando base de dados... (${allData.length} registros)`);
+          
+          let query = supabase
             .from('customers')
             .select('id, cpf, full_name, phone, email, return_date, owner_id, profiles(username)')
             .order('created_at', { ascending: false })
-            .in('id', ids);
-
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+            
+          if (!isAdmin) {
+            query = query.or(`owner_id.eq.${profile.id},owner_id.is.null`);
+          }
+          
           if (searchTerm.trim().length > 0) {
             const term = searchTerm.trim();
             const onlyNumbers = term.replace(/\D/g, '');
+            
             if (onlyNumbers.length > 0) {
-              q = q.or(`full_name.ilike.%${term}%,cpf.ilike.%${term}%,cpf.ilike.%${onlyNumbers}%`);
+              query = query.or(`full_name.ilike.%${term}%,cpf.ilike.%${term}%,cpf.ilike.%${onlyNumbers}%`);
             } else {
-              q = q.or(`full_name.ilike.%${term}%`);
+              query = query.or(`full_name.ilike.%${term}%`);
             }
           }
-          return q;
-        };
+          
+          const { data: custData, error } = await query;
+          if (error) {
+             console.error("ERRO GRAVE AO BUSCAR:", error);
+             setProgressMsg(`Erro: ${error.message}`);
+             hasMore = false;
+             break;
+          }
+          
+          if (custData && custData.length > 0) {
+            const customerIds = custData.map(c => c.id);
+            
+            const [contractsRes, historyRes] = await Promise.all([
+              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, companies ( razao_social )').in('customer_id', customerIds),
+              supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
+            ]);
+            
+            if (contractsRes.error) throw contractsRes.error;
+            if (historyRes.error) throw historyRes.error;
+            
+            const mergedData = custData.map(c => ({
+              ...c,
+              contracts: contractsRes.data?.filter(ct => ct.customer_id === c.id) || [],
+              collection_history: historyRes.data?.filter(h => h.customer_id === c.id) || []
+            }));
 
-        // Divide os IDs em chunks de 500
-        const chunks: string[][] = [];
-        for (let i = 0; i < overdueCustomerIds.length; i += CHUNK_SIZE) {
-          chunks.push(overdueCustomerIds.slice(i, i + CHUNK_SIZE));
+            allData = [...allData, ...mergedData];
+            page++;
+            if (custData.length < pageSize) hasMore = false;
+          } else {
+            hasMore = false;
+          }
         }
-
-        setProgressMsg(`Carregando ${overdueCustomerIds.length} clientes...`);
-
-        // Busca todos os chunks de clientes em paralelo
-        const chunkResults = await Promise.all(chunks.map(chunk => buildCustQuery(chunk)));
-
-        const allCustomers: any[] = [];
-        for (const res of chunkResults) {
-          if (res.error) throw res.error;
-          if (res.data) allCustomers.push(...res.data);
-        }
-
-        if (allCustomers.length === 0) {
-          setCustomers([]);
-          setLoading(false);
-          setProgressMsg('');
-          return;
-        }
-
-        // Busca contratos e histórico em chunks de 500 customer_ids
-        const allContracts: any[] = [];
-        const allHistory: any[] = [];
-        const custIds = allCustomers.map(c => c.id);
-
-        for (let i = 0; i < custIds.length; i += CHUNK_SIZE) {
-          const chunk = custIds.slice(i, i + CHUNK_SIZE);
-          setProgressMsg(`Carregando contratos... (${i}/${custIds.length})`);
-          const [contractsRes, historyRes] = await Promise.all([
-            supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, companies ( razao_social )').in('customer_id', chunk),
-            supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', chunk)
-          ]);
-          if (contractsRes.error) throw contractsRes.error;
-          if (historyRes.error) throw historyRes.error;
-          allContracts.push(...(contractsRes.data || []));
-          allHistory.push(...(historyRes.data || []));
-        }
-
-        allData = allCustomers.map(c => ({
-          ...c,
-          contracts: allContracts.filter(ct => ct.customer_id === c.id),
-          collection_history: allHistory.filter(h => h.customer_id === c.id)
-        }));
-
       } catch (e: any) {
         console.error('Erro ao buscar clientes:', e);
         setProgressMsg(`Erro: ${e.message}`);
@@ -138,72 +90,38 @@ export const CustomersList = () => {
         return;
       }
 
-
       setProgressMsg('Processando layout...');
 
-      const now = new Date();
-
-      const isContractOverdue = (c: any): boolean => {
-        const status = String(c.status || '').toLowerCase();
-        // Quitado nunca é vencido
-        if (status === 'quitado' || status === 'regular') return false;
-
-        // Tenta data direta
-        if (c.due_date && new Date(c.due_date).getFullYear() > 1970) {
-          return new Date(c.due_date) < now;
-        }
-
-        // Tenta serial Excel da planilha BDR
-        const meta = c.metadata || {};
-        const serial = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'] || meta['DT VENC AJUSTADO'];
-        if (serial && !isNaN(Number(serial)) && Number(serial) > 30000 && Number(serial) < 60000) {
-          const days = Math.floor(Number(serial) - 25569);
-          const due = new Date(days * 86400 * 1000);
-          return due < now;
-        }
-
-        // Se tiver status explícito de atraso, considera vencido
-        return status === 'em atraso' || status === 'divergente' || status === 'promessa de pagamento';
-      };
-
       if (allData.length >= 0) {
-        const consolidatedCustomers = allData
-          .map((customer: any) => {
-            if (!customer.contracts || customer.contracts.length === 0) return null;
+        const consolidatedCustomers = allData.map((customer: any) => {
+          if (!customer.contracts || customer.contracts.length === 0) return customer;
 
-            const grouped: Record<string, any[]> = {};
-            customer.contracts.forEach((c: any) => {
-              if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
-              grouped[c.contract_number].push(c);
-            });
+          const grouped: Record<string, any[]> = {};
+          customer.contracts.forEach((c: any) => {
+            if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
+            grouped[c.contract_number].push(c);
+          });
 
-            const consolidatedContracts: any[] = [];
-            Object.values(grouped).forEach(group => {
-              const bdr = group.find((c: any) => c.source_system === 'BDR');
-              const cordel = group.find((c: any) => c.source_system === 'CORDEL');
-              const base = cordel || bdr || group[0];
+          const consolidatedContracts: any[] = [];
+          Object.values(grouped).forEach(group => {
+            const bdr = group.find((c: any) => c.source_system === 'BDR');
+            const cordel = group.find((c: any) => c.source_system === 'CORDEL');
+            const base = cordel || bdr || group[0];
 
-              // Só inclui contratos que estão em atraso pela data
-              if (!isContractOverdue(base)) return;
-
-              let isDivergent = false;
-              if (bdr && cordel) {
-                if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
-                  isDivergent = true;
-                }
+            let isDivergent = false;
+            if (bdr && cordel) {
+              if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
+                isDivergent = true;
               }
-              consolidatedContracts.push({
-                ...base,
-                status: isDivergent ? 'Divergente' : base.status
-              });
+            }
+            consolidatedContracts.push({
+              ...base,
+              status: isDivergent ? 'Divergente' : base.status
             });
+          });
 
-            // Cliente sem nenhum contrato vencido → excluir da lista
-            if (consolidatedContracts.length === 0) return null;
-
-            return { ...customer, contracts: consolidatedContracts };
-          })
-          .filter(Boolean); // remove os nulls
+          return { ...customer, contracts: consolidatedContracts };
+        });
 
         setCustomers(consolidatedCustomers);
       }
