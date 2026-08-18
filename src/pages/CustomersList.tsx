@@ -60,24 +60,17 @@ export const CustomersList = () => {
           return;
         }
 
-        // PASSO 2: Busca os clientes filtrados + contratos + histórico em paralelo
+        // PASSO 2: Busca clientes em chunks (Supabase tem limite ~1000 no .in())
         let allData: any[] = [];
-        const pageSize = 500;
+        const CHUNK_SIZE = 500;
 
-        // Se temos IDs da view, filtra diretamente; senão fallback sem filtro de vencimento
-        const buildCustQuery = (from: number, to: number) => {
+        const buildCustQuery = (ids: string[]) => {
           let q = supabase
             .from('customers')
             .select('id, cpf, full_name, phone, email, return_date, owner_id, profiles(username)')
             .order('created_at', { ascending: false })
-            .range(from, to);
+            .in('id', ids);
 
-          if (overdueCustomerIds.length > 0) {
-            q = q.in('id', overdueCustomerIds);
-          }
-          if (!isAdmin && overdueCustomerIds.length === 0) {
-            q = q.or(`owner_id.eq.${profile.id},owner_id.is.null`);
-          }
           if (searchTerm.trim().length > 0) {
             const term = searchTerm.trim();
             const onlyNumbers = term.replace(/\D/g, '');
@@ -90,42 +83,53 @@ export const CustomersList = () => {
           return q;
         };
 
-        let page = 0;
-        let hasMore = true;
-        while (hasMore) {
-          setProgressMsg(`Carregando clientes... (${allData.length} carregados)`);
-          const { data: custData, error } = await buildCustQuery(page * pageSize, (page + 1) * pageSize - 1);
-
-          if (error) {
-            setProgressMsg(`Erro: ${error.message}`);
-            hasMore = false;
-            break;
-          }
-
-          if (custData && custData.length > 0) {
-            const customerIds = custData.map(c => c.id);
-
-            const [contractsRes, historyRes] = await Promise.all([
-              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, companies ( razao_social )').in('customer_id', customerIds),
-              supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
-            ]);
-
-            if (contractsRes.error) throw contractsRes.error;
-            if (historyRes.error) throw historyRes.error;
-
-            const mergedData = custData.map(c => ({
-              ...c,
-              contracts: contractsRes.data?.filter(ct => ct.customer_id === c.id) || [],
-              collection_history: historyRes.data?.filter(h => h.customer_id === c.id) || []
-            }));
-
-            allData = [...allData, ...mergedData];
-            page++;
-            if (custData.length < pageSize) hasMore = false;
-          } else {
-            hasMore = false;
-          }
+        // Divide os IDs em chunks de 500
+        const chunks: string[][] = [];
+        for (let i = 0; i < overdueCustomerIds.length; i += CHUNK_SIZE) {
+          chunks.push(overdueCustomerIds.slice(i, i + CHUNK_SIZE));
         }
+
+        setProgressMsg(`Carregando ${overdueCustomerIds.length} clientes...`);
+
+        // Busca todos os chunks de clientes em paralelo
+        const chunkResults = await Promise.all(chunks.map(chunk => buildCustQuery(chunk)));
+
+        const allCustomers: any[] = [];
+        for (const res of chunkResults) {
+          if (res.error) throw res.error;
+          if (res.data) allCustomers.push(...res.data);
+        }
+
+        if (allCustomers.length === 0) {
+          setCustomers([]);
+          setLoading(false);
+          setProgressMsg('');
+          return;
+        }
+
+        // Busca contratos e histórico em chunks de 500 customer_ids
+        const allContracts: any[] = [];
+        const allHistory: any[] = [];
+        const custIds = allCustomers.map(c => c.id);
+
+        for (let i = 0; i < custIds.length; i += CHUNK_SIZE) {
+          const chunk = custIds.slice(i, i + CHUNK_SIZE);
+          setProgressMsg(`Carregando contratos... (${i}/${custIds.length})`);
+          const [contractsRes, historyRes] = await Promise.all([
+            supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, companies ( razao_social )').in('customer_id', chunk),
+            supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', chunk)
+          ]);
+          if (contractsRes.error) throw contractsRes.error;
+          if (historyRes.error) throw historyRes.error;
+          allContracts.push(...(contractsRes.data || []));
+          allHistory.push(...(historyRes.data || []));
+        }
+
+        allData = allCustomers.map(c => ({
+          ...c,
+          contracts: allContracts.filter(ct => ct.customer_id === c.id),
+          collection_history: allHistory.filter(h => h.customer_id === c.id)
+        }));
 
       } catch (e: any) {
         console.error('Erro ao buscar clientes:', e);
