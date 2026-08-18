@@ -261,11 +261,19 @@ export const CustomerDetails = () => {
   let isDesligado = false;
   let isAfastado = false;
   contracts.forEach(c => {
-    if (c.dismissal_date) isDesligado = true;
-    if (c.metadata && typeof c.metadata.tipo_evento === 'string') {
-      const evt = c.metadata.tipo_evento.toLowerCase();
-      if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
-      if (evt.includes('afastamento')) isAfastado = true;
+    if (c.dismissal_date && new Date(c.dismissal_date).getFullYear() > 1970) isDesligado = true;
+    
+    if (c.metadata) {
+      if (typeof c.metadata.tipo_evento === 'string') {
+        const evt = c.metadata.tipo_evento.toLowerCase();
+        if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
+        if (evt.includes('afastamento')) isAfastado = true;
+      }
+      
+      const dtDesligamento = c.metadata['entrada_afastamento/rescisao'] || c.metadata['dt_desligamento'] || c.metadata['ENTRADA AFASTAMENTO/RESCISAO'] || c.metadata['DT DESLIGAMENTO'];
+      if (dtDesligamento && !isNaN(Number(dtDesligamento)) && Number(dtDesligamento) > 30000) {
+         isDesligado = true;
+      }
     }
   });
 
@@ -716,6 +724,44 @@ export const CustomerDetails = () => {
                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>Valor Contratado</div>
                        <div style={{ fontWeight: 500 }}>R$ {selectedContract.bdrData ? Number(selectedContract.bdrData.contracted_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}</div>
                      </div>
+                     <div>
+                       <div className="text-muted" style={{ fontSize: '0.75rem' }}>Vencimento Base</div>
+                       <div style={{ fontWeight: 500 }}>
+                         {(() => {
+                           if (!selectedContract.bdrData) return 'N/A';
+                           if (selectedContract.bdrData.due_date && new Date(selectedContract.bdrData.due_date).getFullYear() > 1970) {
+                              return new Date(selectedContract.bdrData.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                           }
+                           const meta = selectedContract.bdrData.metadata || {};
+                           const excelDate = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'];
+                           if (excelDate && !isNaN(Number(excelDate)) && Number(excelDate) > 30000 && Number(excelDate) < 60000) {
+                              const days = Math.floor(Number(excelDate) - 25569);
+                              const dt = new Date(days * 86400 * 1000);
+                              return new Date(dt.getTime() + dt.getTimezoneOffset() * 60000).toLocaleDateString('pt-BR');
+                           }
+                           return 'Não informado';
+                         })()}
+                       </div>
+                     </div>
+                     <div>
+                       <div className="text-muted" style={{ fontSize: '0.75rem' }}>Data Demissão</div>
+                       <div style={{ fontWeight: 500 }}>
+                         {(() => {
+                           if (!selectedContract.bdrData) return 'N/A';
+                           if (selectedContract.bdrData.dismissal_date && new Date(selectedContract.bdrData.dismissal_date).getFullYear() > 1970) {
+                              return new Date(selectedContract.bdrData.dismissal_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                           }
+                           const meta = selectedContract.bdrData.metadata || {};
+                           const excelDate = meta['entrada_afastamento/rescisao'] || meta['dt_desligamento'] || meta['ENTRADA AFASTAMENTO/RESCISAO'];
+                           if (excelDate && !isNaN(Number(excelDate)) && Number(excelDate) > 30000 && Number(excelDate) < 60000) {
+                              const days = Math.floor(Number(excelDate) - 25569);
+                              const dt = new Date(days * 86400 * 1000);
+                              return new Date(dt.getTime() + dt.getTimezoneOffset() * 60000).toLocaleDateString('pt-BR');
+                           }
+                           return 'Não aplicável';
+                         })()}
+                       </div>
+                     </div>
                    </div>
                 </div>
                 <div style={{ background: 'rgba(234, 179, 8, 0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(234,179,8,0.2)' }}>
@@ -732,6 +778,30 @@ export const CustomerDetails = () => {
                      <div>
                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>Valor Contratado</div>
                        <div style={{ fontWeight: 500 }}>R$ {selectedContract.cordelData ? Number(selectedContract.cordelData.contracted_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}</div>
+                     </div>
+                     <div>
+                       <div className="text-muted" style={{ fontSize: '0.75rem' }}>Vencimento Base</div>
+                       <div style={{ fontWeight: 500 }}>
+                         {(() => {
+                           if (!selectedContract.cordelData) return 'N/A';
+                           if (selectedContract.cordelData.due_date && new Date(selectedContract.cordelData.due_date).getFullYear() > 1970) {
+                              return new Date(selectedContract.cordelData.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                           }
+                           return 'Não informado';
+                         })()}
+                       </div>
+                     </div>
+                     <div>
+                       <div className="text-muted" style={{ fontSize: '0.75rem' }}>Data Demissão</div>
+                       <div style={{ fontWeight: 500 }}>
+                         {(() => {
+                           if (!selectedContract.cordelData) return 'N/A';
+                           if (selectedContract.cordelData.dismissal_date && new Date(selectedContract.cordelData.dismissal_date).getFullYear() > 1970) {
+                              return new Date(selectedContract.cordelData.dismissal_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                           }
+                           return 'Não aplicável';
+                         })()}
+                       </div>
                      </div>
                    </div>
                 </div>
@@ -756,11 +826,39 @@ export const CustomerDetails = () => {
                 </div>
                 <div>
                   <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.2rem' }}>Vencimento Base</div>
-                  <div style={{ fontWeight: 500 }}>{selectedContract.due_date ? new Date(selectedContract.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Não informado'}</div>
+                  <div style={{ fontWeight: 500 }}>
+                    {(() => {
+                       if (selectedContract.due_date && new Date(selectedContract.due_date).getFullYear() > 1970) {
+                          return new Date(selectedContract.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                       }
+                       const meta = selectedContract.metadata || {};
+                       const excelDate = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'] || meta['DT VENC AJUSTADO'];
+                       if (excelDate && !isNaN(Number(excelDate)) && Number(excelDate) > 30000 && Number(excelDate) < 60000) {
+                          const days = Math.floor(Number(excelDate) - 25569);
+                          const dt = new Date(days * 86400 * 1000);
+                          return new Date(dt.getTime() + dt.getTimezoneOffset() * 60000).toLocaleDateString('pt-BR');
+                       }
+                       return 'Não informado';
+                    })()}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.2rem' }}>Data Demissão</div>
-                  <div style={{ fontWeight: 500 }}>{selectedContract.dismissal_date ? new Date(selectedContract.dismissal_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Não aplicável'}</div>
+                  <div style={{ fontWeight: 500 }}>
+                    {(() => {
+                       if (selectedContract.dismissal_date && new Date(selectedContract.dismissal_date).getFullYear() > 1970) {
+                          return new Date(selectedContract.dismissal_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                       }
+                       const meta = selectedContract.metadata || {};
+                       const excelDate = meta['entrada_afastamento/rescisao'] || meta['dt_desligamento'] || meta['ENTRADA AFASTAMENTO/RESCISAO'] || meta['DT DESLIGAMENTO'];
+                       if (excelDate && !isNaN(Number(excelDate)) && Number(excelDate) > 30000 && Number(excelDate) < 60000) {
+                          const days = Math.floor(Number(excelDate) - 25569);
+                          const dt = new Date(days * 86400 * 1000);
+                          return new Date(dt.getTime() + dt.getTimezoneOffset() * 60000).toLocaleDateString('pt-BR');
+                       }
+                       return 'Não aplicável';
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
@@ -771,16 +869,98 @@ export const CustomerDetails = () => {
                   <FileText size={16}/> Dados Detalhados da Importação (Origem)
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
-                  {Object.entries(selectedContract.metadata).map(([key, value]: [string, any]) => (
-                    <div key={key} style={{ background: 'var(--color-bg)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
-                      <div className="text-muted" style={{ fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '0.2rem', letterSpacing: '0.5px' }}>
-                        {key.replace(/_/g, ' ')}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 500, wordBreak: 'break-word' }}>
-                        {value !== null && value !== '' ? String(value) : '-'}
-                      </div>
-                    </div>
-                  ))}
+                  {(() => {
+                    // Campos a ESCONDER
+                    const hiddenKeys = new Set([
+                      'status', 'tx_lastro', 'tx_cessao', 'nm_cessao', 'nm_cessao_bdr'
+                    ]);
+
+                    // Renomear campos
+                    const renameMap: Record<string, string> = {
+                      'pz_atual': 'TEMPO DE ATRASO',
+                      'n_controle_lastro_bdr': 'CCB',
+                      'n_controle_lastro_origem': 'CCB ORIGEM',
+                      'vl_pdd': 'VL PDD',
+                      'vl_face': 'VL FACE',
+                      'vl_aquisicao': 'VL AQUISIÇÃO',
+                      'vl_presente_adm': 'VL PRESENTE ADM',
+                      'cnpj_fundo': 'CNPJ FUNDO',
+                      'cnpj_empresa': 'CNPJ EMPRESA',
+                      'doc_sacado': 'DOCUMENTO SACADO',
+                      'doc_cedente': 'DOCUMENTO CEDENTE',
+                    };
+
+                    // Campos de documento (remover prefixo FD e formatar)
+                    const docKeys = new Set(['cnpj_fundo', 'cnpj_empresa', 'doc_sacado', 'doc_cedente', 'pagador']);
+
+                    // Campos de valor monetário
+                    const moneyKeys = new Set(['vl_pdd', 'vl_face', 'vl_aquisicao', 'vl_presente_adm']);
+
+                    const formatDoc = (k: string, v: string) => {
+                      const nums = String(v).replace(/\D/g, '');
+                      // Sacado é sempre CPF — o BDR adiciona zeros à esquerda, precisamos limpar
+                      if (k.toLowerCase() === 'doc_sacado') {
+                        const stripped = nums.replace(/^0+/, '') || '0';
+                        const padded = stripped.padStart(11, '0');
+                        return padded.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                      }
+                      if (nums.length <= 11) {
+                        const padded = nums.padStart(11, '0');
+                        return padded.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                      }
+                      if (nums.length <= 14) {
+                        const padded = nums.padStart(14, '0');
+                        return padded.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+                      }
+                      // Mais de 14 dígitos: provavelmente FD + CNPJ, pegar últimos 14
+                      const cnpjPart = nums.slice(-14);
+                      return cnpjPart.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+                    };
+
+                    const formatMetadataValue = (k: string, v: any) => {
+                      if (v === null || v === '') return '-';
+                      const kLower = k.toLowerCase();
+
+                      // Datas Excel
+                      const isDateKey = kLower.includes('dt') || kLower.includes('data') || kLower.includes('venc') || kLower.includes('rescisao') || kLower.includes('afastamento') || kLower.includes('prestacao');
+                      if (isDateKey && !isNaN(Number(v)) && Number(v) > 30000 && Number(v) < 60000) {
+                        const days = Math.floor(Number(v) - 25569);
+                        const date = new Date(days * 86400 * 1000);
+                        const dt = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+                        return dt.toLocaleDateString('pt-BR');
+                      }
+
+                      // Documentos
+                      if (docKeys.has(kLower)) return formatDoc(k, String(v));
+
+                      // Valores monetários → vírgula
+                      if (moneyKeys.has(kLower)) return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+                      // pz_atual → dias em atraso
+                      if (kLower === 'pz_atual') {
+                        const dias = Math.abs(Number(v));
+                        return `${dias} dias`;
+                      }
+
+                      return String(v);
+                    };
+
+                    return Object.entries(selectedContract.metadata)
+                      .filter(([key]) => !hiddenKeys.has(key.toLowerCase()))
+                      .map(([key, value]: [string, any]) => {
+                        const label = renameMap[key.toLowerCase()] || key.replace(/_/g, ' ');
+                        return (
+                          <div key={key} style={{ background: 'var(--color-bg)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
+                            <div className="text-muted" style={{ fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '0.2rem', letterSpacing: '0.5px' }}>
+                              {label}
+                            </div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 500, wordBreak: 'break-word' }}>
+                              {formatMetadataValue(key, value)}
+                            </div>
+                          </div>
+                        );
+                      });
+                  })()}
                 </div>
               </div>
             )}

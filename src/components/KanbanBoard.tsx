@@ -48,11 +48,17 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
         let isAfastado = false;
 
         const totalDebt = contracts.reduce((acc: number, curr: any) => {
-           if (curr.dismissal_date) isDesligado = true;
-           if (curr.metadata && typeof curr.metadata.tipo_evento === 'string') {
-              const evt = curr.metadata.tipo_evento.toLowerCase();
-              if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
-              if (evt.includes('afastamento')) isAfastado = true;
+           if (curr.dismissal_date && new Date(curr.dismissal_date).getFullYear() > 1970) isDesligado = true;
+           if (curr.metadata) {
+             if (typeof curr.metadata.tipo_evento === 'string') {
+                const evt = curr.metadata.tipo_evento.toLowerCase();
+                if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
+                if (evt.includes('afastamento')) isAfastado = true;
+             }
+             const dtDesl = curr.metadata['entrada_afastamento/rescisao'] || curr.metadata['dt_desligamento'] || curr.metadata['ENTRADA AFASTAMENTO/RESCISAO'] || curr.metadata['DT DESLIGAMENTO'];
+             if (dtDesl && !isNaN(Number(dtDesl)) && Number(dtDesl) > 30000) {
+                isDesligado = true;
+             }
            }
 
            const status = String(curr.status).toLowerCase();

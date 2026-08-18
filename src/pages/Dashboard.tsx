@@ -56,7 +56,7 @@ export const Dashboard = () => {
             const customerIds = custData.map(c => c.id);
             
             const [contractsRes, historyRes] = await Promise.all([
-              supabase.from('contracts').select('customer_id, contracted_amount, outstanding_balance, status, source_system, contract_number').in('customer_id', customerIds),
+              supabase.from('contracts').select('customer_id, contracted_amount, outstanding_balance, status, source_system, contract_number, due_date, metadata').in('customer_id', customerIds),
               supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
             ]);
             
@@ -95,6 +95,7 @@ export const Dashboard = () => {
         let balance = 0;
         
         let statusMap: Record<string, number> = {};
+        const now = new Date();
 
         allData.forEach((customer: any) => {
            let overallStatus = 'Novos / Inicial';
@@ -136,19 +137,33 @@ export const Dashboard = () => {
               });
               
               Object.values(grouped).forEach(group => {
-                totalContractsNum++;
                 const bdr = group.find(c => c.source_system === 'BDR');
                 const cordel = group.find(c => c.source_system === 'CORDEL');
                 const base = cordel || bdr || group[0];
                 
-                const valContratado = Number(base.contracted_amount) || 0;
+                const statusStr = String(base.status).toLowerCase();
                 const valAberto = Number(base.outstanding_balance) || 0;
                 
-                custContracted += valContratado;
+                // Determinar a data de vencimento real (campo direto ou Excel serial do BDR)
+                let dueDate: Date | null = null;
+                if (base.due_date && new Date(base.due_date).getFullYear() > 1970) {
+                   dueDate = new Date(base.due_date);
+                } else if (base.metadata) {
+                   const excelSerial = base.metadata['dt_venc_origem'] || base.metadata['dt_venc_ajustado'] || base.metadata['DT VENC ORIGEM'] || base.metadata['DT VENC AJUSTADO'];
+                   if (excelSerial && !isNaN(Number(excelSerial)) && Number(excelSerial) > 30000 && Number(excelSerial) < 60000) {
+                      const days = Math.floor(Number(excelSerial) - 25569);
+                      dueDate = new Date(days * 86400 * 1000);
+                   }
+                }
                 
-                const statusStr = String(base.status).toLowerCase();
-                if (statusStr !== 'quitado' && statusStr !== 'regular') {
+                const isVencido = dueDate && dueDate < now;
+                const isQuitado = statusStr === 'quitado';
+                
+                // Só entra no dashboard se está VENCIDO pela data e NÃO foi quitado
+                if (isVencido && !isQuitado) {
+                   totalContractsNum++;
                    custBalance += valAberto;
+                   custContracted += valAberto;
                 }
               });
            }
@@ -156,8 +171,10 @@ export const Dashboard = () => {
            contracted += custContracted;
            balance += custBalance;
 
-           const valueForPie = overallStatus === 'Pagamento Realizado' ? custContracted : custBalance;
-           statusMap[overallStatus] = (statusMap[overallStatus] || 0) + valueForPie;
+           const valueForPie = custBalance;
+           if (valueForPie > 0) {
+              statusMap[overallStatus] = (statusMap[overallStatus] || 0) + valueForPie;
+           }
         });
 
         setStats({
@@ -305,9 +322,9 @@ export const Dashboard = () => {
             
             {/* Texto central do Donut */}
             <div style={{ position: 'absolute', top: '50%', left: '38%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-              <div className="text-muted" style={{ fontSize: '0.7rem' }}>Volume Carteira</div>
+              <div className="text-muted" style={{ fontSize: '0.7rem' }}>Carteira Vencida</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
-                R$ {(stats.totalContracted / 1000000).toFixed(1)}M
+                R$ {(stats.totalBalance / 1000000).toFixed(1)}M
               </div>
             </div>
           </div>
