@@ -590,15 +590,30 @@ export const CustomerDetails = () => {
                       );
                     })()}
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 600, color: contract.discrepancyType === 'DIVERGENTE' ? '#f59e0b' : 'var(--color-primary)' }}>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                    <div style={{ fontWeight: 600, fontSize: '1.1rem', color: contract.discrepancyType === 'DIVERGENTE' ? '#f59e0b' : 'var(--color-primary)' }}>
                       R$ {Number(contract.outstanding_balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
-                    <span style={{ fontSize: '0.75rem' }} className="text-muted">Clique para ver detalhes</span>
+
+                    {(() => {
+                      const meta = contract.metadata || {};
+                      let qtdParcelas = parseInt(contract.total_installments || meta.n_parcelas_lastro || meta.pz_total || 1, 10);
+                      if (isNaN(qtdParcelas) || qtdParcelas <= 0) qtdParcelas = 1;
+                      
+                      const saldo = Number(contract.outstanding_balance) || 0;
+                      const valorParcela = saldo / qtdParcelas;
+
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }} className="text-muted">
+                          <span>{qtdParcelas}x de</span>
+                          <strong style={{ color: 'var(--color-text)' }}>R$ {valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                        </div>
+                      );
+                    })()}
+
+                    <span style={{ fontSize: '0.7rem', marginTop: '0.25rem' }} className="text-muted">Clique para detalhes</span>
                   </div>
                 </div>
-
-                {/* Metadata removido do card principal a pedido do usuário. Só visível no modal flutuante. */}
               </div>
             ))}
             
@@ -883,7 +898,28 @@ export const CustomerDetails = () => {
                 </div>
                 <div>
                   <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.2rem' }}>Total Parcelas</div>
-                  <div style={{ fontWeight: 500 }}>{selectedContract.total_installments ? `${selectedContract.total_installments}x` : 'N/I'}</div>
+                  <div style={{ fontWeight: 500 }}>
+                    {(() => {
+                      const meta = selectedContract.metadata || {};
+                      let qtdParcelas = parseInt(selectedContract.total_installments || meta.n_parcelas_lastro || meta.pz_total || 1, 10);
+                      if (isNaN(qtdParcelas) || qtdParcelas <= 0) qtdParcelas = 1;
+                      return `${qtdParcelas}x`;
+                    })()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.2rem' }}>Valor da Parcela</div>
+                  <div style={{ fontWeight: 500 }}>
+                    {(() => {
+                      const meta = selectedContract.metadata || {};
+                      let qtdParcelas = parseInt(selectedContract.total_installments || meta.n_parcelas_lastro || meta.pz_total || 1, 10);
+                      if (isNaN(qtdParcelas) || qtdParcelas <= 0) qtdParcelas = 1;
+                      
+                      const saldo = Number(selectedContract.outstanding_balance) || 0;
+                      const valorParcela = saldo / qtdParcelas;
+                      return `R$ ${valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                    })()}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.2rem' }}>Fundo</div>
