@@ -539,7 +539,10 @@ export const CustomerDetails = () => {
                       )}
                     </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', marginBottom: '0.5rem' }} className="text-muted">
-                      <Briefcase size={14} /> {contract.companies?.razao_social || 'Desconhecido'} 
+                      <Briefcase size={14} /> 
+                      <strong style={{ color: 'var(--color-text)', fontSize: '0.95rem' }}>
+                        {contract.companies?.razao_social || contract.metadata?.empresa || contract.metadata?.fonte_pagadora || 'Desconhecido'}
+                      </strong>
                     </div>
 
                     {(() => {
@@ -726,7 +729,10 @@ export const CustomerDetails = () => {
                   )}
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }} className="text-muted">
-                  <Briefcase size={14} /> {selectedContract.companies?.razao_social || 'Desconhecido'}
+                  <Briefcase size={16} style={{ color: 'var(--color-primary)' }} /> 
+                  <strong style={{ color: 'var(--color-text)', fontSize: '1.1rem' }}>
+                    {selectedContract.companies?.razao_social || selectedContract.metadata?.empresa || selectedContract.metadata?.fonte_pagadora || 'Desconhecido'}
+                  </strong>
                 </div>
               </div>
               <button 

@@ -355,7 +355,7 @@ export const CustomersList = () => {
                                 color: 'var(--color-text)',
                                 cursor: 'default'
                               }}
-                              data-tip={`${contract.companies?.razao_social || 'Desconhecido'} - R$ ${contract.contracted_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                              data-tip={`${contract.companies?.razao_social || contract.metadata?.empresa || contract.metadata?.fonte_pagadora || 'Desconhecido'} - R$ ${contract.contracted_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                             >
                               {contract.contract_number}
                             </button>
