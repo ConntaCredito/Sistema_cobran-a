@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const Import = () => {
   const [source, setSource] = useState<'BDR' | 'CORDEL'>('BDR');
+  const [fund, setFund] = useState<'Alcar' | 'Alpha'>('Alcar');
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
@@ -92,6 +93,7 @@ export const Import = () => {
                 company_id: companyId,
                 contract_number: numero_contrato,
                 source_system: source,
+                fund: fund,
                 contracted_amount: isNaN(valor_contratado) ? 0 : valor_contratado,
                 outstanding_balance: isNaN(saldo_devedor) ? 0 : saldo_devedor,
                 status: situacao || 'Regular'
@@ -138,6 +140,18 @@ export const Import = () => {
             <FileUp size={24} /> Nova Importação
           </h2>
           
+          <div className="mb-4">
+            <label className="text-muted mb-1" style={{ display: 'block', fontSize: '0.9rem' }}>Fundo</label>
+            <select 
+              className="input-field" 
+              value={fund} 
+              onChange={(e) => setFund(e.target.value as any)}
+            >
+              <option value="Alcar">Fundo Alcar</option>
+              <option value="Alpha">Fundo Alpha</option>
+            </select>
+          </div>
+
           <div className="mb-4">
             <label className="text-muted mb-1" style={{ display: 'block', fontSize: '0.9rem' }}>Sistema de Origem</label>
             <select 

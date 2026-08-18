@@ -522,6 +522,11 @@ export const CustomerDetails = () => {
                   <div>
                     <h3 style={{ fontSize: '1.05rem', marginBottom: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {contract.contract_number}
+                      {contract.fund && (
+                        <span style={{ fontSize: '0.7rem', background: 'rgba(255, 255, 255, 0.1)', color: '#e2e8f0', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                          {contract.fund}
+                        </span>
+                      )}
                       {contract.discrepancyType === 'DIVERGENTE' && (
                         <span style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
                           DIVERGENTE

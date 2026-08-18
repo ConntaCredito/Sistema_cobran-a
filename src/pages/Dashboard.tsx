@@ -28,6 +28,7 @@ export const Dashboard = () => {
 
   const [statusData, setStatusData] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [fundFilter, setFundFilter] = useState<'Todos' | 'Alcar' | 'Alpha'>('Todos');
 
   useEffect(() => {
     async function fetchStats() {
@@ -35,7 +36,7 @@ export const Dashboard = () => {
       setErrorMsg('');
 
       // Cache de 5 minutos no sessionStorage para evitar recarregar toda navegação
-      const CACHE_KEY = `dashboard_stats_v3_${profile.id}`;
+      const CACHE_KEY = `dashboard_stats_v4_${profile.id}_${fundFilter}`;
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
       try {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -52,8 +53,12 @@ export const Dashboard = () => {
       // Busca direto nos contratos relevantes — sem loop de páginas de customers
       let contractsQuery = supabase
         .from('contracts')
-        .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata')
+        .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata, fund')
         .in('status', ['Em atraso', 'Promessa de Pagamento', 'Divergente', 'Quitado']);
+
+      if (fundFilter !== 'Todos') {
+        contractsQuery = contractsQuery.eq('fund', fundFilter);
+      }
 
       // Filtro por carteira se não for ADMIN
       let allData: any[] = [];
@@ -211,7 +216,7 @@ export const Dashboard = () => {
 
         // Salva no cache por 5 minutos
         try {
-          const CACHE_KEY = `dashboard_stats_v3_${profile.id}`; // v3 para invalidar cache antigo automaticamente
+          const CACHE_KEY = `dashboard_stats_v4_${profile.id}_${fundFilter}`; // v4 para invalidar cache antigo automaticamente
           const newStats = {
             totalContracts: totalContractsNum, totalContracted: contracted, totalBalance: balance,
             totalRecovered: statusMap['Pagamento Realizado'] || 0, alerts: 0, promisesCount: 0,
@@ -228,7 +233,7 @@ export const Dashboard = () => {
     }
 
     fetchStats();
-  }, [profile]);
+  }, [profile, fundFilter]);
 
   const barData = [
     {
@@ -246,13 +251,28 @@ export const Dashboard = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0 }}>Inteligência Financeira</h1>
-        {errorMsg && (
-          <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600 }}>
-            Erro ao buscar dados: {errorMsg}
-          </div>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h1 style={{ margin: 0 }}>Inteligência Financeira</h1>
+          {errorMsg && (
+            <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600 }}>
+              Erro ao buscar dados: {errorMsg}
+            </div>
+          )}
+        </div>
+        
+        <div>
+          <select 
+            className="input-field" 
+            value={fundFilter}
+            onChange={(e) => setFundFilter(e.target.value as any)}
+            style={{ minWidth: '150px' }}
+          >
+            <option value="Todos">Todos os Fundos</option>
+            <option value="Alcar">Fundo Alcar</option>
+            <option value="Alpha">Fundo Alpha</option>
+          </select>
+        </div>
       </div>
       
       {/* KPIs Principais */}

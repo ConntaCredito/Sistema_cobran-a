@@ -14,6 +14,8 @@ export const CustomersList = () => {
   const [loading, setLoading] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
 
+  const [fundFilter, setFundFilter] = useState<'Todos' | 'Alcar' | 'Alpha'>('Todos');
+
   useEffect(() => {
     async function fetchCustomers() {
       if (!profile) return;
@@ -62,8 +64,14 @@ export const CustomersList = () => {
           if (custData && custData.length > 0) {
             const customerIds = custData.map(c => c.id);
             
+            let contractsQuery = supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, fund, companies ( razao_social )').in('customer_id', customerIds);
+            
+            if (fundFilter !== 'Todos') {
+              contractsQuery = contractsQuery.eq('fund', fundFilter);
+            }
+
             const [contractsRes, historyRes] = await Promise.all([
-              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, companies ( razao_social )').in('customer_id', customerIds),
+              contractsQuery,
               supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
             ]);
             
@@ -134,7 +142,7 @@ export const CustomersList = () => {
     }, 500); // debounce de 500ms
     
     return () => clearTimeout(timeoutId);
-  }, [profile, searchTerm]);
+  }, [profile, searchTerm, fundFilter]);
 
   const [displayLimit, setDisplayLimit] = useState(100);
 
@@ -153,6 +161,17 @@ export const CustomersList = () => {
         <h1>Central de Clientes</h1>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+
+          <select 
+            className="input-field" 
+            value={fundFilter}
+            onChange={(e) => setFundFilter(e.target.value as any)}
+            style={{ minWidth: '150px' }}
+          >
+            <option value="Todos">Todos os Fundos</option>
+            <option value="Alcar">Fundo Alcar</option>
+            <option value="Alpha">Fundo Alpha</option>
+          </select>
           
           {(loading || progressMsg) && (
             <div style={{ 
