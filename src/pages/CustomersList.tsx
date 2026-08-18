@@ -20,6 +20,7 @@ export const CustomersList = () => {
       setLoading(true);
 
       const isAdmin = profile.role === 'ADMIN';
+      let allData: any[] = [];
 
       try {
         setProgressMsg('Buscando clientes com contratos vencidos...');
@@ -61,7 +62,6 @@ export const CustomersList = () => {
         }
 
         // PASSO 2: Busca clientes em chunks (Supabase tem limite ~1000 no .in())
-        let allData: any[] = [];
         const CHUNK_SIZE = 500;
 
         const buildCustQuery = (ids: string[]) => {
