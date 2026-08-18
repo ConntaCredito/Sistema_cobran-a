@@ -100,36 +100,69 @@ export const CustomersList = () => {
 
       setProgressMsg('Processando layout...');
 
+      const now = new Date();
+
+      const isContractOverdue = (c: any): boolean => {
+        const status = String(c.status || '').toLowerCase();
+        // Quitado ou regular nunca é vencido
+        if (status === 'quitado' || status === 'regular') return false;
+
+        // Tenta data direta
+        if (c.due_date && new Date(c.due_date).getFullYear() > 1970) {
+          return new Date(c.due_date) < now;
+        }
+
+        // Tenta serial Excel da planilha BDR
+        const meta = c.metadata || {};
+        const serial = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'] || meta['DT VENC AJUSTADO'];
+        if (serial && !isNaN(Number(serial)) && Number(serial) > 30000 && Number(serial) < 60000) {
+          const days = Math.floor(Number(serial) - 25569);
+          const due = new Date(days * 86400 * 1000);
+          return due < now;
+        }
+
+        // Se tiver status explícito de atraso, considera vencido
+        return status === 'em atraso' || status === 'divergente' || status === 'promessa de pagamento';
+      };
+
       if (allData.length >= 0) {
-        const consolidatedCustomers = allData.map((customer: any) => {
-          if (!customer.contracts || customer.contracts.length === 0) return customer;
+        const consolidatedCustomers = allData
+          .map((customer: any) => {
+            if (!customer.contracts || customer.contracts.length === 0) return null;
 
-          const grouped: Record<string, any[]> = {};
-          customer.contracts.forEach((c: any) => {
-            if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
-            grouped[c.contract_number].push(c);
-          });
-
-          const consolidatedContracts: any[] = [];
-          Object.values(grouped).forEach(group => {
-            const bdr = group.find((c: any) => c.source_system === 'BDR');
-            const cordel = group.find((c: any) => c.source_system === 'CORDEL');
-            const base = cordel || bdr || group[0];
-
-            let isDivergent = false;
-            if (bdr && cordel) {
-              if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
-                isDivergent = true;
-              }
-            }
-            consolidatedContracts.push({
-              ...base,
-              status: isDivergent ? 'Divergente' : base.status
+            const grouped: Record<string, any[]> = {};
+            customer.contracts.forEach((c: any) => {
+              if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
+              grouped[c.contract_number].push(c);
             });
-          });
 
-          return { ...customer, contracts: consolidatedContracts };
-        });
+            const consolidatedContracts: any[] = [];
+            Object.values(grouped).forEach(group => {
+              const bdr = group.find((c: any) => c.source_system === 'BDR');
+              const cordel = group.find((c: any) => c.source_system === 'CORDEL');
+              const base = cordel || bdr || group[0];
+
+              // Só inclui se estiver vencido
+              if (!isContractOverdue(base)) return;
+
+              let isDivergent = false;
+              if (bdr && cordel) {
+                if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
+                  isDivergent = true;
+                }
+              }
+              consolidatedContracts.push({
+                ...base,
+                status: isDivergent ? 'Divergente' : base.status
+              });
+            });
+
+            // Se depois de filtrar os contratos em dia não sobrar nada, não mostra o cliente
+            if (consolidatedContracts.length === 0) return null;
+
+            return { ...customer, contracts: consolidatedContracts };
+          })
+          .filter(Boolean);
 
         setCustomers(consolidatedCustomers);
       }
