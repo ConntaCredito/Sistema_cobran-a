@@ -20,7 +20,10 @@ export const Dashboard = () => {
     divergentVolume: 0,
     negociandoValue: 0,
     atendimentoValue: 0,
-    naoContactadoValue: 0
+    naoContactadoValue: 0,
+    naoRespondeuValue: 0,
+    inviavelValue: 0,
+    numeroIncorretoValue: 0
   });
 
   const [statusData, setStatusData] = useState<any[]>([]);
@@ -32,7 +35,7 @@ export const Dashboard = () => {
       setErrorMsg('');
 
       // Cache de 5 minutos no sessionStorage para evitar recarregar toda navegação
-      const CACHE_KEY = `dashboard_stats_v2_${profile.id}`;
+      const CACHE_KEY = `dashboard_stats_v3_${profile.id}`;
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
       try {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -188,6 +191,9 @@ export const Dashboard = () => {
           negociandoValue: statusMap['Negociando'] || 0,
           atendimentoValue: statusMap['Em Atendimento'] || 0,
           naoContactadoValue: statusMap['Novos / Inicial'] || 0,
+          naoRespondeuValue: statusMap['Não Respondeu'] || 0,
+          inviavelValue: statusMap['Inviável'] || 0,
+          numeroIncorretoValue: statusMap['Número Incorreto'] || 0,
           divergentVolume: 0
         });
 
@@ -205,13 +211,16 @@ export const Dashboard = () => {
 
         // Salva no cache por 5 minutos
         try {
-          const CACHE_KEY = `dashboard_stats_v2_${profile.id}`; // v2 para invalidar cache antigo automaticamente
+          const CACHE_KEY = `dashboard_stats_v3_${profile.id}`; // v3 para invalidar cache antigo automaticamente
           const newStats = {
             totalContracts: totalContractsNum, totalContracted: contracted, totalBalance: balance,
             totalRecovered: statusMap['Pagamento Realizado'] || 0, alerts: 0, promisesCount: 0,
             promisesValue: statusMap['Promessa'] || 0, negociandoValue: statusMap['Negociando'] || 0,
             atendimentoValue: statusMap['Em Atendimento'] || 0, divergentVolume: 0,
-            naoContactadoValue: statusMap['Novos / Inicial'] || 0
+            naoContactadoValue: statusMap['Novos / Inicial'] || 0,
+            naoRespondeuValue: statusMap['Não Respondeu'] || 0,
+            inviavelValue: statusMap['Inviável'] || 0,
+            numeroIncorretoValue: statusMap['Número Incorreto'] || 0
           };
           sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), stats: newStats, pie: pieData }));
         } catch (_) {}
@@ -224,9 +233,14 @@ export const Dashboard = () => {
   const barData = [
     {
       name: 'Situação Global',
-      'Valor Recuperado': stats.totalRecovered,
+      'Não Contactado': stats.naoContactadoValue,
+      'Não Respondeu': stats.naoRespondeuValue,
+      'Em Atendimento': stats.atendimentoValue,
+      'Negociando': stats.negociandoValue,
       'Promessas': stats.promisesValue,
-      'Valor em Aberto': stats.totalBalance
+      'Inviável': stats.inviavelValue,
+      'Núm. Incorreto': stats.numeroIncorretoValue,
+      'Valor Recuperado': stats.totalRecovered
     }
   ];
 
@@ -279,6 +293,27 @@ export const Dashboard = () => {
           </div>
         </div>
 
+        <div className="glass-card" style={{ borderBottom: '4px solid #94a3b8' }}>
+          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Não Respondeu</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#94a3b8' }}>
+            R$ {stats.naoRespondeuValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ borderBottom: '4px solid #ef4444' }}>
+          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Inviável</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#ef4444' }}>
+            R$ {stats.inviavelValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ borderBottom: '4px solid #fb7185' }}>
+          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Núm. Incorreto</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#fb7185' }}>
+            R$ {stats.numeroIncorretoValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+
         <div className="glass-card" style={{ borderBottom: '4px solid #10b981' }}>
           <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Valor Recuperado</div>
           <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#10b981' }}>
@@ -306,9 +341,14 @@ export const Dashboard = () => {
                   formatter={(value: any) => `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                 />
                 <Legend />
-                <Bar dataKey="Valor Recuperado" fill="#86efac" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Não Contactado" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Não Respondeu" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Em Atendimento" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Negociando" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Promessas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Valor em Aberto" fill="#fca5a5" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Inviável" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Núm. Incorreto" fill="#fb7185" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Valor Recuperado" fill="#10b981" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
