@@ -19,7 +19,8 @@ export const Dashboard = () => {
     promisesValue: 0,
     divergentVolume: 0,
     negociandoValue: 0,
-    atendimentoValue: 0
+    atendimentoValue: 0,
+    naoContactadoValue: 0
   });
 
   const [statusData, setStatusData] = useState<any[]>([]);
@@ -31,7 +32,7 @@ export const Dashboard = () => {
       setErrorMsg('');
 
       // Cache de 5 minutos no sessionStorage para evitar recarregar toda navegação
-      const CACHE_KEY = `dashboard_stats_${profile.id}`;
+      const CACHE_KEY = `dashboard_stats_v2_${profile.id}`;
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
       try {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -186,28 +187,31 @@ export const Dashboard = () => {
           promisesValue: statusMap['Promessa'] || 0,
           negociandoValue: statusMap['Negociando'] || 0,
           atendimentoValue: statusMap['Em Atendimento'] || 0,
+          naoContactadoValue: statusMap['Novos / Inicial'] || 0,
           divergentVolume: 0
         });
 
         const pieData = [];
-        if (statusMap['Em Atendimento']) pieData.push({ name: 'Em Atendimento', value: statusMap['Em Atendimento'], color: '#3b82f6' });
-        if (statusMap['Negociando']) pieData.push({ name: 'Negociando', value: statusMap['Negociando'], color: '#f59e0b' });
-        if (statusMap['Promessa']) pieData.push({ name: 'Promessa', value: statusMap['Promessa'], color: '#8b5cf6' });
-        if (statusMap['Pagamento Realizado']) pieData.push({ name: 'Recuperado', value: statusMap['Pagamento Realizado'], color: '#10b981' });
-        if (statusMap['Não Respondeu']) pieData.push({ name: 'Não Respondeu', value: statusMap['Não Respondeu'], color: '#94a3b8' });
-        if (statusMap['Número Incorreto']) pieData.push({ name: 'Número Incorreto', value: statusMap['Número Incorreto'], color: '#fb7185' });
-        if (statusMap['Inviável']) pieData.push({ name: 'Inviável', value: statusMap['Inviável'], color: '#ef4444' });
+        if (statusMap['Novos / Inicial'])    pieData.push({ name: 'Não Contactado',  value: statusMap['Novos / Inicial'],    color: '#6366f1' });
+        if (statusMap['Em Atendimento'])     pieData.push({ name: 'Em Atendimento',  value: statusMap['Em Atendimento'],     color: '#3b82f6' });
+        if (statusMap['Negociando'])         pieData.push({ name: 'Negociando',      value: statusMap['Negociando'],         color: '#f59e0b' });
+        if (statusMap['Promessa'])           pieData.push({ name: 'Promessa',        value: statusMap['Promessa'],           color: '#8b5cf6' });
+        if (statusMap['Pagamento Realizado'])pieData.push({ name: 'Recuperado',      value: statusMap['Pagamento Realizado'],color: '#10b981' });
+        if (statusMap['Não Respondeu'])      pieData.push({ name: 'Não Respondeu',   value: statusMap['Não Respondeu'],      color: '#94a3b8' });
+        if (statusMap['Inviável'])           pieData.push({ name: 'Inviável',        value: statusMap['Inviável'],           color: '#ef4444' });
+        if (statusMap['Número Incorreto'])   pieData.push({ name: 'Num. Incorreto',  value: statusMap['Número Incorreto'],   color: '#fb7185' });
 
         setStatusData(pieData);
 
         // Salva no cache por 5 minutos
         try {
-          const CACHE_KEY = `dashboard_stats_${profile.id}`;
+          const CACHE_KEY = `dashboard_stats_v2_${profile.id}`; // v2 para invalidar cache antigo automaticamente
           const newStats = {
             totalContracts: totalContractsNum, totalContracted: contracted, totalBalance: balance,
             totalRecovered: statusMap['Pagamento Realizado'] || 0, alerts: 0, promisesCount: 0,
             promisesValue: statusMap['Promessa'] || 0, negociandoValue: statusMap['Negociando'] || 0,
-            atendimentoValue: statusMap['Em Atendimento'] || 0, divergentVolume: 0
+            atendimentoValue: statusMap['Em Atendimento'] || 0, divergentVolume: 0,
+            naoContactadoValue: statusMap['Novos / Inicial'] || 0
           };
           sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), stats: newStats, pie: pieData }));
         } catch (_) {}
@@ -240,17 +244,17 @@ export const Dashboard = () => {
       {/* KPIs Principais */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         
-        <div className="glass-card" style={{ borderBottom: '4px solid #86efac' }}>
-          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Valor Recuperado</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#10b981' }}>
-            R$ {stats.totalRecovered.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        <div className="glass-card" style={{ borderBottom: '4px solid #fca5a5' }}>
+          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Carteira Vencida</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#ef4444' }}>
+            R$ {stats.totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
 
-        <div className="glass-card" style={{ borderBottom: '4px solid #fca5a5' }}>
-          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Valor em Aberto</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#ef4444' }}>
-            R$ {stats.totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        <div className="glass-card" style={{ borderBottom: '4px solid #6366f1' }}>
+          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Não Contactado</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#6366f1' }}>
+            R$ {stats.naoContactadoValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
 
@@ -272,6 +276,13 @@ export const Dashboard = () => {
           <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Promessas</div>
           <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#8b5cf6' }}>
             R$ {stats.promisesValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ borderBottom: '4px solid #10b981' }}>
+          <div className="text-muted mb-2" style={{ fontSize: '0.85rem' }}>Valor Recuperado</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#10b981' }}>
+            R$ {stats.totalRecovered.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
 
