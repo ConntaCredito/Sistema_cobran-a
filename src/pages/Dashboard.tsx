@@ -29,66 +29,67 @@ export const Dashboard = () => {
     async function fetchStats() {
       if (!profile) return;
       setErrorMsg('');
-      
-      let allData: any[] = [];
-      let from = 0;
-      const limit = 150;
-      let hasMore = true;
 
-      while (hasMore) {
-        const to = from + limit - 1;
-        let query = supabase.from('customers').select('id, owner_id').range(from, to);
-        
-        if (profile.role !== 'ADMIN') {
-          query = query.or(`owner_id.eq.${profile.id},owner_id.is.null`);
-        }
-
-        const { data: custData, error: custErr } = await query;
-        
-        if (custErr) {
-          console.error("Erro ao buscar stats:", custErr);
-          setErrorMsg(custErr.message);
-          break;
-        }
-
-        if (custData && custData.length > 0) {
-          try {
-            const customerIds = custData.map(c => c.id);
-            
-            const [contractsRes, historyRes] = await Promise.all([
-              supabase.from('contracts').select('customer_id, contracted_amount, outstanding_balance, status, source_system, contract_number, due_date, metadata').in('customer_id', customerIds),
-              supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
-            ]);
-            
-            if (contractsRes.error) throw contractsRes.error;
-            if (historyRes.error) throw historyRes.error;
-            
-            const contractsData = contractsRes.data;
-            const historyData = historyRes.data;
-            
-            const mergedData = custData.map(c => ({
-              ...c,
-              contracts: contractsData?.filter(ct => ct.customer_id === c.id) || [],
-              collection_history: historyData?.filter(h => h.customer_id === c.id) || []
-            }));
-            
-            allData = [...allData, ...mergedData];
-            if (custData.length < limit) {
-              hasMore = false;
-            } else {
-              from += limit;
-            }
-          } catch (e: any) {
-            console.error("Erro no Promise.all:", e);
-            setErrorMsg(e.message);
-            hasMore = false;
-            break;
+      // Cache de 5 minutos no sessionStorage para evitar recarregar toda navegação
+      const CACHE_KEY = `dashboard_stats_${profile.id}`;
+      const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { ts, stats: cachedStats, pie } = JSON.parse(cached);
+          if (Date.now() - ts < CACHE_TTL) {
+            setStats(cachedStats);
+            setStatusData(pie);
+            return;
           }
-        } else {
-          hasMore = false;
         }
+      } catch (_) {}
+
+      // Busca direto nos contratos em atraso — sem loop de páginas de customers
+      let contractsQuery = supabase
+        .from('contracts')
+        .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata->dt_venc_origem, metadata->dt_venc_ajustado')
+        .or('status.eq.Em atraso,status.eq.Promessa de Pagamento,status.eq.Divergente,status.eq.Quitado');
+
+      // Filtro por carteira se não for ADMIN
+      let allData: any[] = [];
+      if (profile.role !== 'ADMIN') {
+        // Busca apenas os customer_ids do operador
+        const { data: myCusts } = await supabase
+          .from('customers')
+          .select('id')
+          .or(`owner_id.eq.${profile.id},owner_id.is.null`);
+        const ids = (myCusts || []).map((c: any) => c.id);
+        if (ids.length === 0) { return; }
+        contractsQuery = contractsQuery.in('customer_id', ids);
       }
-      
+
+      // Busca contratos + histórico em paralelo
+      const [contractsRes, historyRes] = await Promise.all([
+        contractsQuery,
+        supabase.from('collection_history')
+          .select('customer_id, phase, created_at')
+          .order('created_at', { ascending: false })
+      ]);
+
+      if (contractsRes.error) { setErrorMsg(contractsRes.error.message); return; }
+      if (historyRes.error)   { setErrorMsg(historyRes.error.message); return; }
+
+      const contractsData = contractsRes.data || [];
+      const historyData   = historyRes.data || [];
+
+      // Agrupa contratos por customer_id para montar allData
+      const customerMap: Record<string, any> = {};
+      contractsData.forEach((c: any) => {
+        if (!customerMap[c.customer_id]) customerMap[c.customer_id] = { id: c.customer_id, contracts: [], collection_history: [] };
+        customerMap[c.customer_id].contracts.push(c);
+      });
+      historyData.forEach((h: any) => {
+        if (customerMap[h.customer_id]) customerMap[h.customer_id].collection_history.push(h);
+      });
+      allData = Object.values(customerMap);
+
+
       if (allData.length > 0) {
         let totalContractsNum = 0;
         let contracted = 0;
@@ -200,6 +201,18 @@ export const Dashboard = () => {
         if (statusMap['Inviável']) pieData.push({ name: 'Inviável', value: statusMap['Inviável'], color: '#ef4444' });
 
         setStatusData(pieData);
+
+        // Salva no cache por 5 minutos
+        try {
+          const CACHE_KEY = `dashboard_stats_${profile.id}`;
+          const newStats = {
+            totalContracts: totalContractsNum, totalContracted: contracted, totalBalance: balance,
+            totalRecovered: statusMap['Pagamento Realizado'] || 0, alerts: 0, promisesCount: 0,
+            promisesValue: statusMap['Promessa'] || 0, negociandoValue: statusMap['Negociando'] || 0,
+            atendimentoValue: statusMap['Em Atendimento'] || 0, divergentVolume: 0
+          };
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), stats: newStats, pie: pieData }));
+        } catch (_) {}
       }
     }
 

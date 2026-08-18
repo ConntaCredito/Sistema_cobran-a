@@ -23,7 +23,7 @@ export const CustomersList = () => {
 
       let allData: any[] = [];
       let page = 0;
-      const pageSize = 150;
+      const pageSize = 500;
       let hasMore = true;
 
       while (hasMore) {
@@ -62,7 +62,7 @@ export const CustomersList = () => {
             const customerIds = custData.map(c => c.id);
             
             const [contractsRes, historyRes] = await Promise.all([
-              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, metadata, due_date, dismissal_date, companies ( razao_social )').in('customer_id', customerIds),
+              supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata->dt_venc_origem, metadata->dt_venc_ajustado, metadata->entrada_afastamento/rescisao, metadata->dt_desligamento, metadata->tipo_evento, companies ( razao_social )').in('customer_id', customerIds),
               supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
             ]);
             

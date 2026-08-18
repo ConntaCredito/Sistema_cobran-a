@@ -25,85 +25,94 @@ export const CustomerDetails = () => {
   useEffect(() => {
     async function fetchData() {
       if (!cpf) return;
-      
-      const { data: custData } = await supabase.from('customers').select(`
-        *,
-        profiles (username),
-        collection_history (*)
-      `).eq('cpf', cpf).single();
-      
-      if (custData) {
-        // Regra de Acesso:
-        // Admin: Acesso total
-        // User Padrão: Só acessa se for o dono (owner_id === profile.id) ou se não tiver dono (owner_id === null)
-        if (!isAdmin && custData.owner_id && custData.owner_id !== profile?.id) {
-          setAccessDenied(true);
-          return;
-        }
 
-        setCustomer(custData);
-        const { data: contData } = await supabase.from('contracts').select(`
+      // Busca customer e contratos em PARALELO (2x mais rápido que serial)
+      const [custRes, profilesRes] = await Promise.all([
+        supabase.from('customers').select(`
+          *,
+          profiles (username),
+          collection_history (*)
+        `).eq('cpf', cpf).single(),
+        isAdmin ? supabase.from('profiles').select('*') : Promise.resolve({ data: [] })
+      ]);
+
+      const custData = custRes.data;
+
+      if (isAdmin && profilesRes.data) {
+        setAllProfiles(profilesRes.data);
+      }
+
+      if (!custData) return;
+
+      // Regra de Acesso:
+      // Admin: Acesso total
+      // User Padrão: Só acessa se for o dono (owner_id === profile.id) ou se não tiver dono (owner_id === null)
+      if (!isAdmin && custData.owner_id && custData.owner_id !== profile?.id) {
+        setAccessDenied(true);
+        return;
+      }
+
+      // Busca contratos em paralelo com setCustomer (não bloqueia a UI)
+      const [, contRes] = await Promise.all([
+        Promise.resolve(setCustomer(custData)),
+        supabase.from('contracts').select(`
           *,
           companies (cnpj, razao_social)
-        `).eq('customer_id', custData.id);
-        if (contData) {
-          // Lógica de conciliação
-          const grouped: Record<string, any[]> = {};
-          contData.forEach(c => {
-            if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
-            grouped[c.contract_number].push(c);
-          });
-          
-          const consolidatedContracts: any[] = [];
-          
-          Object.values(grouped).forEach(group => {
-            if (group.length === 1) {
-              const c = group[0];
-              consolidatedContracts.push({
-                ...c,
-                discrepancyType: c.source_system === 'BDR' ? 'SOMENTE BDR' : (c.source_system === 'CORDEL' ? 'SOMENTE CORDEL' : null),
-                bdrData: c.source_system === 'BDR' ? c : null,
-                cordelData: c.source_system === 'CORDEL' ? c : null
-              });
-            } else {
-              const bdr = group.find(c => c.source_system === 'BDR');
-              const cordel = group.find(c => c.source_system === 'CORDEL');
-              // Priorizar exibição do Cordel se existir
-              const base = cordel || bdr || group[0];
-              
-              let discrepancyType = null;
-              if (bdr && cordel) {
-                if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
-                  discrepancyType = 'DIVERGENTE';
-                } else {
-                  discrepancyType = 'CONCILIADO';
-                }
+        `).eq('customer_id', custData.id)
+      ]);
+
+      const contData = contRes.data;
+      if (contData) {
+        // Lógica de conciliação
+        const grouped: Record<string, any[]> = {};
+        contData.forEach(c => {
+          if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
+          grouped[c.contract_number].push(c);
+        });
+        
+        const consolidatedContracts: any[] = [];
+        
+        Object.values(grouped).forEach(group => {
+          if (group.length === 1) {
+            const c = group[0];
+            consolidatedContracts.push({
+              ...c,
+              discrepancyType: c.source_system === 'BDR' ? 'SOMENTE BDR' : (c.source_system === 'CORDEL' ? 'SOMENTE CORDEL' : null),
+              bdrData: c.source_system === 'BDR' ? c : null,
+              cordelData: c.source_system === 'CORDEL' ? c : null
+            });
+          } else {
+            const bdr = group.find(c => c.source_system === 'BDR');
+            const cordel = group.find(c => c.source_system === 'CORDEL');
+            // Priorizar exibição do Cordel se existir
+            const base = cordel || bdr || group[0];
+            
+            let discrepancyType = null;
+            if (bdr && cordel) {
+              if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
+                discrepancyType = 'DIVERGENTE';
+              } else {
+                discrepancyType = 'CONCILIADO';
               }
-              
-              consolidatedContracts.push({
-                ...base,
-                discrepancyType,
-                bdrData: bdr,
-                cordelData: cordel,
-                status: discrepancyType === 'DIVERGENTE' ? 'Divergente' : base.status
-              });
             }
-          });
-          
-          setContracts(consolidatedContracts);
-        }
+            
+            consolidatedContracts.push({
+              ...base,
+              discrepancyType,
+              bdrData: bdr,
+              cordelData: cordel,
+              status: discrepancyType === 'DIVERGENTE' ? 'Divergente' : base.status
+            });
+          }
+        });
+        
+        setContracts(consolidatedContracts);
       }
     }
     
     // So roda quando profile tiver carregado para não dar falso positivo na trava
     if (profile !== undefined) {
       fetchData();
-    }
-
-    if (isAdmin) {
-      supabase.from('profiles').select('*').then(({ data }) => {
-        if (data) setAllProfiles(data);
-      });
     }
   }, [cpf, isAdmin, profile]);
 
