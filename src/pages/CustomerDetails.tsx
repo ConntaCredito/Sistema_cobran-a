@@ -538,9 +538,54 @@ export const CustomerDetails = () => {
                         </span>
                       )}
                     </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }} className="text-muted">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', marginBottom: '0.5rem' }} className="text-muted">
                       <Briefcase size={14} /> {contract.companies?.razao_social || 'Desconhecido'} 
                     </div>
+
+                    {(() => {
+                      const meta = contract.metadata || {};
+                      let tipoEvento = '';
+                      let dataEvento = '';
+                      let vencBase = '';
+
+                      const formatExcelDate = (serial: any) => {
+                         if (!serial || isNaN(Number(serial)) || Number(serial) < 30000) return '';
+                         const days = Math.floor(Number(serial) - 25569);
+                         return new Date(days * 86400 * 1000).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                      };
+
+                      if (typeof meta.tipo_evento === 'string') {
+                        tipoEvento = String(meta.tipo_evento).toUpperCase();
+                      }
+                      
+                      const dtDesl = meta['entrada_afastamento/rescisao'] || meta['dt_desligamento'] || meta['ENTRADA AFASTAMENTO/RESCISAO'];
+                      if (dtDesl) dataEvento = formatExcelDate(dtDesl);
+                      
+                      const dtVenc = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'];
+                      if (dtVenc) vencBase = formatExcelDate(dtVenc);
+
+                      if (!tipoEvento && !dataEvento && !vencBase) return null;
+
+                      return (
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                          {tipoEvento && (
+                            <span style={{ fontSize: '0.7rem', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                              EVENTO: {tipoEvento}
+                            </span>
+                          )}
+                          {dataEvento && (
+                            <span style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                              DATA EVENTO: {dataEvento}
+                            </span>
+                          )}
+                          {vencBase && (
+                            <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                              VENC. BASE: {vencBase}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 600, color: contract.discrepancyType === 'DIVERGENTE' ? '#f59e0b' : 'var(--color-primary)' }}>

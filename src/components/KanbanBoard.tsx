@@ -46,18 +46,42 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
 
         let isDesligado = false;
         let isAfastado = false;
+        let tipoEvento = '';
+        let dataEvento = '';
+        let vencimentoBase = '';
+
+        const formatExcelDate = (serial: any) => {
+           if (!serial || isNaN(Number(serial)) || Number(serial) < 30000) return '';
+           const days = Math.floor(Number(serial) - 25569);
+           return new Date(days * 86400 * 1000).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        };
 
         const totalDebt = contracts.reduce((acc: number, curr: any) => {
-           if (curr.dismissal_date && new Date(curr.dismissal_date).getFullYear() > 1970) isDesligado = true;
+           if (curr.dismissal_date && new Date(curr.dismissal_date).getFullYear() > 1970) {
+             isDesligado = true;
+             if (!dataEvento) dataEvento = new Date(curr.dismissal_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+           }
+           
+           if (curr.due_date && new Date(curr.due_date).getFullYear() > 1970 && !vencimentoBase) {
+             vencimentoBase = new Date(curr.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+           }
+
            if (curr.metadata) {
-             if (typeof curr.metadata.tipo_evento === 'string') {
-                const evt = curr.metadata.tipo_evento.toLowerCase();
+             if (typeof curr.metadata.tipo_evento === 'string' && !tipoEvento) {
+                tipoEvento = String(curr.metadata.tipo_evento).toUpperCase();
+                const evt = tipoEvento.toLowerCase();
                 if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
                 if (evt.includes('afastamento')) isAfastado = true;
              }
              const dtDesl = curr.metadata['entrada_afastamento/rescisao'] || curr.metadata['dt_desligamento'] || curr.metadata['ENTRADA AFASTAMENTO/RESCISAO'] || curr.metadata['DT DESLIGAMENTO'];
              if (dtDesl && !isNaN(Number(dtDesl)) && Number(dtDesl) > 30000) {
                 isDesligado = true;
+                if (!dataEvento) dataEvento = formatExcelDate(dtDesl);
+             }
+
+             const dtVenc = curr.metadata['dt_venc_origem'] || curr.metadata['dt_venc_ajustado'] || curr.metadata['DT VENC ORIGEM'];
+             if (dtVenc && !vencimentoBase) {
+                vencimentoBase = formatExcelDate(dtVenc);
              }
            }
 
@@ -89,7 +113,10 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
           totalDebt,
           contractCount: contracts.length,
           isDesligado,
-          isAfastado
+          isAfastado,
+          tipoEvento,
+          dataEvento,
+          vencimentoBase
         };
       });
       setBoardData(mappedData);
@@ -240,6 +267,29 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
                                 </span>
                               )}
                             </div>
+
+                            {(customer.tipoEvento || customer.vencimentoBase || customer.dataEvento) && (
+                              <div style={{ background: '#f8fafc', padding: '0.5rem', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '0.75rem' }}>
+                                {customer.tipoEvento && (
+                                  <div style={{ fontSize: '0.7rem', color: '#334155', display: 'flex', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
+                                    <strong style={{ color: '#475569' }}>EVENTO:</strong>
+                                    <span style={{ fontWeight: 'bold', color: '#0f172a' }}>{customer.tipoEvento}</span>
+                                  </div>
+                                )}
+                                {customer.dataEvento && (
+                                  <div style={{ fontSize: '0.7rem', color: '#334155', display: 'flex', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
+                                    <strong style={{ color: '#475569' }}>DATA EVENTO:</strong>
+                                    <span>{customer.dataEvento}</span>
+                                  </div>
+                                )}
+                                {customer.vencimentoBase && (
+                                  <div style={{ fontSize: '0.7rem', color: '#334155', display: 'flex', justifyContent: 'space-between' }}>
+                                    <strong style={{ color: '#475569' }}>VENC. BASE:</strong>
+                                    <span>{customer.vencimentoBase}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
                               <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>Total</span>
