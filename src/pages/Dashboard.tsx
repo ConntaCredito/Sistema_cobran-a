@@ -185,8 +185,18 @@ export const Dashboard = () => {
                 const isVencido = dueDate && dueDate < now;
                 const isQuitado = statusStr === 'quitado';
                 
-                // Só entra no dashboard se está VENCIDO pela data e NÃO foi quitado
-                if (isVencido && !isQuitado) {
+                // Ignorar se o evento for "não" ou "nao"
+                let isEventoNao = false;
+                if (base.metadata) {
+                  const rawEvt = base.metadata.tipo_evento || base.metadata.tipo_evento_sacado || base.metadata['TIPO EVENTO SACADO'] || base.metadata.em_cobranca;
+                  if (rawEvt) {
+                    const evtStr = String(rawEvt).trim().toLowerCase();
+                    if (evtStr === 'não' || evtStr === 'nao') isEventoNao = true;
+                  }
+                }
+                
+                // Só entra no dashboard se está VENCIDO pela data, NÃO foi quitado, e o evento não é nulo/não
+                if (isVencido && !isQuitado && !isEventoNao) {
                    totalContractsNum++;
                    custBalance += valAberto;
                    custContracted += valAberto;

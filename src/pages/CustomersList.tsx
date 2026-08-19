@@ -135,9 +135,16 @@ export const CustomersList = () => {
       const now = new Date();
 
       const isContractOverdue = (c: any): boolean => {
+        const meta = c.metadata || {};
+        const rawEvent = meta.tipo_evento || meta.tipo_evento_sacado || meta['TIPO EVENTO SACADO'] || meta.em_cobranca;
+        if (rawEvent) {
+          const evt = String(rawEvent).trim().toLowerCase();
+          if (evt === 'não' || evt === 'nao') return false;
+        }
+
         const status = String(c.status || '').toLowerCase();
-        // Quitado ou regular nunca é vencido
-        if (status === 'quitado' || status === 'regular') return false;
+        // Quitado nunca é vencido. (Removemos 'regular' daqui para permitir regular com data vencida, ex: Cordel)
+        if (status === 'quitado') return false;
 
         // Tenta data direta
         if (c.due_date && new Date(c.due_date).getFullYear() > 1970) {
