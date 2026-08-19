@@ -68,10 +68,11 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
 
            if (curr.metadata) {
              if (typeof curr.metadata.tipo_evento === 'string' && !tipoEvento) {
-                tipoEvento = String(curr.metadata.tipo_evento).toUpperCase();
-                const evt = tipoEvento.toLowerCase();
-                if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
-                if (evt.includes('afastamento')) isAfastado = true;
+                let evt = String(curr.metadata.tipo_evento).toUpperCase();
+                if (evt.includes('RESCIS') || evt.includes('RECIS')) evt = 'DEMISSÃO';
+                tipoEvento = evt;
+                if (evt.includes('DEMISSÃO') || evt.includes('DESLIGAMENTO')) isDesligado = true;
+                if (evt.includes('AFASTAMENTO')) isAfastado = true;
              }
              const dtDesl = curr.metadata['entrada_afastamento/rescisao'] || curr.metadata['dt_desligamento'] || curr.metadata['ENTRADA AFASTAMENTO/RESCISAO'] || curr.metadata['DT DESLIGAMENTO'];
              if (dtDesl && !isNaN(Number(dtDesl)) && Number(dtDesl) > 30000) {

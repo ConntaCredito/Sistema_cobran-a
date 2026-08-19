@@ -275,7 +275,11 @@ export const CustomerDetails = () => {
 
   contracts.forEach(c => {
     if (c.metadata && typeof c.metadata.tipo_evento === 'string') {
-      if (!tipoEventoGeral) tipoEventoGeral = String(c.metadata.tipo_evento).toUpperCase();
+      if (!tipoEventoGeral) {
+        let evt = String(c.metadata.tipo_evento).toUpperCase();
+        if (evt.includes('RESCIS') || evt.includes('RECIS')) evt = 'DEMISSÃO';
+        tipoEventoGeral = evt;
+      }
     }
   });
 
@@ -560,7 +564,9 @@ export const CustomerDetails = () => {
                       };
 
                       if (typeof meta.tipo_evento === 'string') {
-                        tipoEvento = String(meta.tipo_evento).toUpperCase();
+                        let evt = String(meta.tipo_evento).toUpperCase();
+                        if (evt.includes('RESCIS') || evt.includes('RECIS')) evt = 'DEMISSÃO';
+                        tipoEvento = evt;
                       }
                       
                       const dtDesl = meta['entrada_afastamento/rescisao'] || meta['dt_desligamento'] || meta['ENTRADA AFASTAMENTO/RESCISAO'];
