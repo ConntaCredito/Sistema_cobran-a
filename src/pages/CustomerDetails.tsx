@@ -371,19 +371,16 @@ export const CustomerDetails = () => {
               </div>
               
               {tipoEventoGeral && (
-                <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 'bold', fontSize: '0.9rem', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                <div style={{ 
+                  background: tipoEventoGeral.includes('AFASTAMENTO') ? '#fef3c7' : '#fee2e2', 
+                  color: tipoEventoGeral.includes('AFASTAMENTO') ? '#b45309' : '#b91c1c', 
+                  padding: '0.5rem 1rem', 
+                  borderRadius: '2rem', 
+                  fontWeight: 'bold', 
+                  fontSize: '0.9rem', 
+                  border: `1px solid ${tipoEventoGeral.includes('AFASTAMENTO') ? '#fde68a' : '#fca5a5'}` 
+                }}>
                   {tipoEventoGeral}
-                </div>
-              )}
-
-              {isDesligado && (
-                <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 'bold', fontSize: '0.9rem', border: '1px solid #fca5a5' }}>
-                  DESLIGADO
-                </div>
-              )}
-              {isAfastado && !isDesligado && (
-                <div style={{ background: '#fef3c7', color: '#b45309', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 'bold', fontSize: '0.9rem', border: '1px solid #fde68a' }}>
-                  AFASTADO
                 </div>
               )}
             </div>
