@@ -66,9 +66,10 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
              vencimentoBase = new Date(curr.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
            }
 
-           if (curr.metadata) {
-             if (typeof curr.metadata.tipo_evento === 'string' && !tipoEvento) {
-                let evt = String(curr.metadata.tipo_evento).toUpperCase();
+             if (curr.metadata) {
+               const rawEvent = curr.metadata.tipo_evento || curr.metadata.tipo_evento_sacado || curr.metadata['TIPO EVENTO SACADO'] || curr.metadata.em_cobranca;
+               if (typeof rawEvent === 'string' && rawEvent.trim() !== '' && !tipoEvento) {
+                let evt = String(rawEvent).toUpperCase();
                 if (evt.includes('RESCIS') || evt.includes('RECIS')) evt = 'DEMISSÃO';
                 tipoEvento = evt;
                 if (evt.includes('DEMISSÃO') || evt.includes('DESLIGAMENTO')) isDesligado = true;

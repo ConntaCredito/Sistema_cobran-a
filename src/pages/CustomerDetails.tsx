@@ -274,9 +274,10 @@ export const CustomerDetails = () => {
   let tipoEventoGeral = '';
 
   contracts.forEach(c => {
-    if (c.metadata && typeof c.metadata.tipo_evento === 'string') {
-      if (!tipoEventoGeral) {
-        let evt = String(c.metadata.tipo_evento).toUpperCase();
+    if (c.metadata) {
+      const rawEvent = c.metadata.tipo_evento || c.metadata.tipo_evento_sacado || c.metadata['TIPO EVENTO SACADO'] || c.metadata.em_cobranca;
+      if (typeof rawEvent === 'string' && rawEvent.trim() !== '' && !tipoEventoGeral) {
+        let evt = String(rawEvent).toUpperCase();
         if (evt.includes('RESCIS') || evt.includes('RECIS')) evt = 'DEMISSÃO';
         tipoEventoGeral = evt;
       }
@@ -563,8 +564,9 @@ export const CustomerDetails = () => {
                          return new Date(days * 86400 * 1000).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
                       };
 
-                      if (typeof meta.tipo_evento === 'string') {
-                        let evt = String(meta.tipo_evento).toUpperCase();
+                      const rawEvent = meta.tipo_evento || meta.tipo_evento_sacado || meta['TIPO EVENTO SACADO'] || meta.em_cobranca;
+                      if (typeof rawEvent === 'string' && rawEvent.trim() !== '') {
+                        let evt = String(rawEvent).toUpperCase();
                         if (evt.includes('RESCIS') || evt.includes('RECIS')) evt = 'DEMISSÃO';
                         tipoEvento = evt;
                       }
