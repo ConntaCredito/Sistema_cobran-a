@@ -15,15 +15,25 @@ export const CustomersList = () => {
   const [progressMsg, setProgressMsg] = useState('');
 
   const [fundFilter, setFundFilter] = useState<'Todos' | 'Alcar' | 'Alpha'>('Todos');
+  const [operatorFilter, setOperatorFilter] = useState<string>('Todos');
+  const [operatorsList, setOperatorsList] = useState<{id: string, username: string}[]>([]);
+
+  useEffect(() => {
+    if (profile?.role === 'ADMIN') {
+      supabase.from('profiles').select('id, username').order('username')
+        .then(({ data }) => {
+          if (data) setOperatorsList(data);
+        });
+    }
+  }, [profile]);
 
   useEffect(() => {
     async function fetchCustomers() {
       if (!profile) return;
       
-      const CACHE_KEY = `customers_list_v1_${profile.id}_${fundFilter}`;
-      const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+      const CACHE_KEY = `customers_list_v1_${profile.id}_${fundFilter}_${operatorFilter}`;
+      const CACHE_TTL = 5 * 60 * 1000;
 
-      // Só usamos cache se não houver termo de busca (para a lista principal)
       if (!searchTerm.trim()) {
         try {
           const cached = sessionStorage.getItem(CACHE_KEY);
@@ -32,7 +42,7 @@ export const CustomersList = () => {
             if (Date.now() - ts < CACHE_TTL) {
               setCustomers(data);
               setLoading(false);
-              return; // Sai cedo, instantâneo!
+              return;
             }
           }
         } catch (_) {}
@@ -59,6 +69,12 @@ export const CustomersList = () => {
             
           if (!isAdmin) {
             query = query.or(`owner_id.eq.${profile.id},owner_id.is.null`);
+          } else {
+            if (operatorFilter === 'SemDono') {
+              query = query.is('owner_id', null);
+            } else if (operatorFilter !== 'Todos') {
+              query = query.eq('owner_id', operatorFilter);
+            }
           }
           
           if (searchTerm.trim().length > 0) {
@@ -81,127 +97,91 @@ export const CustomersList = () => {
           }
           
           if (custData && custData.length > 0) {
-            const customerIds = custData.map(c => c.id);
-            
-            let contractsQuery = supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, fund, companies ( razao_social )').in('customer_id', customerIds);
-            
-            if (fundFilter !== 'Todos') {
-              contractsQuery = contractsQuery.eq('fund', fundFilter);
-            }
-
-            const [contractsRes, historyRes] = await Promise.all([
-              contractsQuery,
-              supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
-            ]);
-            
-            if (contractsRes.error) throw contractsRes.error;
-            if (historyRes.error) throw historyRes.error;
-            
-            const mergedData = custData.map(c => ({
-              ...c,
-              contracts: contractsRes.data?.filter(ct => ct.customer_id === c.id) || [],
-              collection_history: historyRes.data?.filter(h => h.customer_id === c.id) || []
-            }));
-
-            allData = [...allData, ...mergedData];
-            page++;
+            allData = [...allData, ...custData];
             if (custData.length < pageSize) hasMore = false;
+            else page++;
           } else {
             hasMore = false;
           }
         }
-      } catch (e: any) {
-        console.error('Erro ao buscar clientes:', e);
-        setProgressMsg(`Erro: ${e.message}`);
-        setLoading(false);
-        return;
-      }
 
-      setProgressMsg('Processando layout...');
-
-      const now = new Date();
-
-      const isContractOverdue = (c: any): boolean => {
-        const status = String(c.status || '').toLowerCase();
-        // Quitado ou regular nunca é vencido
-        if (status === 'quitado' || status === 'regular') return false;
-
-        // Tenta data direta
-        if (c.due_date && new Date(c.due_date).getFullYear() > 1970) {
-          return new Date(c.due_date) < now;
+        setProgressMsg(`Avaliando contratos e divergências...`);
+        const customerIds = allData.map(c => c.id);
+        
+        let allContracts: any[] = [];
+        for (let i = 0; i < customerIds.length; i += 500) {
+           const chunk = customerIds.slice(i, i + 500);
+           const { data: cData } = await supabase
+             .from('contracts')
+             .select('*, companies(razao_social)')
+             .in('customer_id', chunk);
+           if (cData) allContracts = [...allContracts, ...cData];
         }
 
-        // Tenta serial Excel da planilha BDR
-        const meta = c.metadata || {};
-        const serial = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'] || meta['DT VENC AJUSTADO'];
-        if (serial && !isNaN(Number(serial)) && Number(serial) > 30000 && Number(serial) < 60000) {
-          const days = Math.floor(Number(serial) - 25569);
-          const due = new Date(days * 86400 * 1000);
-          return due < now;
-        }
+        const consolidatedCustomers = allData.map(customer => {
+          const cContracts = allContracts.filter(c => c.customer_id === customer.id);
+          const grouped: Record<string, any[]> = {};
+          cContracts.forEach((c: any) => {
+            if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
+            grouped[c.contract_number].push(c);
+          });
 
-        // Se tiver status explícito de atraso, considera vencido
-        return status === 'em atraso' || status === 'divergente' || status === 'promessa de pagamento';
-      };
-
-      if (allData.length >= 0) {
-        const consolidatedCustomers = allData
-          .map((customer: any) => {
-            if (!customer.contracts || customer.contracts.length === 0) return null;
-
-            const grouped: Record<string, any[]> = {};
-            customer.contracts.forEach((c: any) => {
-              if (!grouped[c.contract_number]) grouped[c.contract_number] = [];
-              grouped[c.contract_number].push(c);
-            });
-
-            const consolidatedContracts: any[] = [];
-            Object.values(grouped).forEach(group => {
-              const bdr = group.find((c: any) => c.source_system === 'BDR');
-              const cordel = group.find((c: any) => c.source_system === 'CORDEL');
-              const base = cordel || bdr || group[0];
-
-              // Só inclui se estiver vencido
-              if (!isContractOverdue(base)) return;
-
-              let isDivergent = false;
-              if (bdr && cordel) {
-                if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
-                  isDivergent = true;
-                }
+          const consolidatedContracts: any[] = [];
+          Object.values(grouped).forEach(group => {
+            const bdr = group.find((c: any) => c.source_system === 'BDR');
+            const cordel = group.find((c: any) => c.source_system === 'CORDEL');
+            const base = cordel || bdr || group[0];
+            
+            let discrepancyType = null;
+            if (bdr && cordel) {
+              if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
+                discrepancyType = base.fund === 'Alcar' ? 'PARCELA ISOLADA' : 'DIVERGENTE';
+              } else {
+                discrepancyType = 'CONCILIADO';
               }
-              consolidatedContracts.push({
-                ...base,
-                status: isDivergent ? 'Divergente' : base.status
-              });
+            } else if (bdr && !cordel) {
+              discrepancyType = 'SOMENTE BDR';
+            } else if (!bdr && cordel) {
+              discrepancyType = 'SOMENTE CORDEL';
+            }
+            
+            consolidatedContracts.push({
+              ...base,
+              discrepancyType,
+              status: discrepancyType === 'DIVERGENTE' ? 'Divergente' : base.status
             });
+          });
 
-            // Se depois de filtrar os contratos em dia não sobrar nada, não mostra o cliente
-            if (consolidatedContracts.length === 0) return null;
+          const filteredContracts = fundFilter === 'Todos' ? consolidatedContracts : consolidatedContracts.filter(c => c.fund === fundFilter);
+          if (filteredContracts.length === 0) return null;
+          const isAtivo = filteredContracts.some(c => c.status !== 'Regular' && c.status !== 'Quitado');
+          if (!isAtivo) return null;
 
-            return { ...customer, contracts: consolidatedContracts };
-          })
-          .filter(Boolean);
+          return { ...customer, contracts: filteredContracts };
+        }).filter(Boolean);
 
         setCustomers(consolidatedCustomers);
 
-        // Salvar no cache apenas se não houver busca ativa
         if (!searchTerm.trim()) {
           try {
             sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: consolidatedCustomers }));
           } catch (_) {}
         }
+      } catch (e: any) {
+        console.error('Erro ao buscar clientes:', e);
+        setProgressMsg(`Erro: ${e.message}`);
+      } finally {
+        setLoading(false);
+        setProgressMsg('');
       }
-      setLoading(false);
-      setProgressMsg('');
     }
     
     const timeoutId = setTimeout(() => {
       fetchCustomers();
-    }, 500); // debounce de 500ms
+    }, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [profile, searchTerm, fundFilter]);
+  }, [profile, searchTerm, fundFilter, operatorFilter]);
 
   const [displayLimit, setDisplayLimit] = useState(100);
 
@@ -215,7 +195,6 @@ export const CustomersList = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '1.5rem', paddingRight: '2rem' }}>
       
-      {/* Cabeçalho, Busca e Toggle */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
         <h1>Central de Clientes</h1>
         
@@ -233,11 +212,26 @@ export const CustomersList = () => {
               <option value="Alpha">Fundo Alpha</option>
             </select>
             
+            {profile?.role === 'ADMIN' && (
+              <select 
+                className="input-field" 
+                value={operatorFilter}
+                onChange={(e) => setOperatorFilter(e.target.value)}
+                style={{ minWidth: '160px' }}
+              >
+                <option value="Todos">Todos os Clientes</option>
+                <option value="SemDono">Sem Dono Definido</option>
+                {operatorsList.map(op => (
+                  <option key={op.id} value={op.id}>@{op.username}</option>
+                ))}
+              </select>
+            )}
+
             <button 
               className="btn-secondary"
               onClick={() => {
-                sessionStorage.removeItem(`customers_list_v1_${profile?.id}_${fundFilter}`);
-                setSearchTerm(searchTerm + ' '); // trick to trigger refresh
+                sessionStorage.removeItem(`customers_list_v1_${profile?.id}_${fundFilter}_${operatorFilter}`);
+                setSearchTerm(searchTerm + ' ');
                 setTimeout(() => setSearchTerm(searchTerm.trim()), 100);
               }}
               title="Forçar atualização dos dados"
