@@ -728,7 +728,13 @@ export const CustomerDetails = () => {
 
       {/* Modal / Card Flutuante do Contrato */}
       {selectedContract && (
-        <div className="modal-overlay" onClick={() => setSelectedContract(null)}>
+        <div 
+          style={{ 
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)',
+            display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 
+          }}
+          onClick={() => setSelectedContract(null)}
+        >
           <div 
             className="glass-card" 
             style={{ 
