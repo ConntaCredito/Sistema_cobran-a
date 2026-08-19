@@ -90,7 +90,11 @@ export const CustomerDetails = () => {
             let discrepancyType = null;
             if (bdr && cordel) {
               if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
-                discrepancyType = 'DIVERGENTE';
+                if (base.fund === 'Alcar') {
+                  discrepancyType = 'PARCELA ISOLADA';
+                } else {
+                  discrepancyType = 'DIVERGENTE';
+                }
               } else {
                 discrepancyType = 'CONCILIADO';
               }
@@ -518,6 +522,7 @@ export const CustomerDetails = () => {
                   cursor: 'pointer', 
                   transition: 'background 0.2s',
                   borderLeft: contract.discrepancyType === 'DIVERGENTE' ? '4px solid #f59e0b' : 
+                              contract.discrepancyType === 'PARCELA ISOLADA' ? '4px solid #8b5cf6' :
                               (contract.status === 'Regular' || contract.status === 'Quitado' ? '4px solid var(--color-success)' : '4px solid var(--color-danger)')
                 }}
                 onClick={() => setSelectedContract(contract)}
@@ -536,6 +541,11 @@ export const CustomerDetails = () => {
                       {contract.discrepancyType === 'DIVERGENTE' && (
                         <span style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
                           DIVERGENTE
+                        </span>
+                      )}
+                      {contract.discrepancyType === 'PARCELA ISOLADA' && (
+                        <span style={{ fontSize: '0.7rem', background: 'rgba(139, 92, 246, 0.2)', color: '#8b5cf6', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                          PARCELA ISOLADA
                         </span>
                       )}
                       {contract.discrepancyType === 'SOMENTE BDR' && (
@@ -597,7 +607,7 @@ export const CustomerDetails = () => {
                     })()}
                   </div>
                   <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
-                    <div style={{ fontWeight: 600, fontSize: '1.1rem', color: contract.discrepancyType === 'DIVERGENTE' ? '#f59e0b' : 'var(--color-primary)' }}>
+                    <div style={{ fontWeight: 600, fontSize: '1.1rem', color: contract.discrepancyType === 'DIVERGENTE' ? '#f59e0b' : contract.discrepancyType === 'PARCELA ISOLADA' ? '#8b5cf6' : 'var(--color-primary)' }}>
                       R$ {Number(contract.outstanding_balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
 
@@ -718,17 +728,11 @@ export const CustomerDetails = () => {
 
       {/* Modal / Card Flutuante do Contrato */}
       {selectedContract && (
-        <div 
-          style={{ 
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)',
-            display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 
-          }}
-          onClick={() => setSelectedContract(null)}
-        >
+        <div className="modal-overlay" onClick={() => setSelectedContract(null)}>
           <div 
             className="glass-card" 
             style={{ 
-              width: '100%', maxWidth: selectedContract.discrepancyType === 'DIVERGENTE' ? '800px' : '500px', padding: '2rem', 
+              width: '100%', maxWidth: (selectedContract.discrepancyType === 'DIVERGENTE' || selectedContract.discrepancyType === 'PARCELA ISOLADA') ? '800px' : '500px', padding: '2rem', 
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 255, 170, 0.1)',
               maxHeight: '90vh', overflowY: 'auto'
             }}
@@ -736,13 +740,15 @@ export const CustomerDetails = () => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.3rem', marginBottom: '0.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.2rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   {selectedContract.contract_number}
                   {selectedContract.discrepancyType && (
                      <span style={{ 
                         fontSize: '0.75rem', 
-                        background: selectedContract.discrepancyType === 'DIVERGENTE' ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)',
-                        color: selectedContract.discrepancyType === 'DIVERGENTE' ? '#f59e0b' : '#3b82f6',
+                        background: selectedContract.discrepancyType === 'DIVERGENTE' ? 'rgba(245,158,11,0.2)' : 
+                                    selectedContract.discrepancyType === 'PARCELA ISOLADA' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59,130,246,0.2)',
+                        color: selectedContract.discrepancyType === 'DIVERGENTE' ? '#f59e0b' : 
+                               selectedContract.discrepancyType === 'PARCELA ISOLADA' ? '#8b5cf6' : '#3b82f6',
                         padding: '0.2rem 0.5rem', borderRadius: '4px' 
                      }}>
                         {selectedContract.discrepancyType}
@@ -793,7 +799,7 @@ export const CustomerDetails = () => {
               </select>
             </div>
 
-            {selectedContract.discrepancyType === 'DIVERGENTE' ? (
+            {selectedContract.discrepancyType === 'DIVERGENTE' || selectedContract.discrepancyType === 'PARCELA ISOLADA' ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                 <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(59,130,246,0.2)' }}>
                    <h4 style={{ color: '#3b82f6', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileText size={16}/> Dados BDR</h4>
