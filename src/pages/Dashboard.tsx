@@ -54,7 +54,7 @@ export const Dashboard = () => {
       let contractsQuery = supabase
         .from('contracts')
         .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata, fund')
-        .in('status', ['Em atraso', 'Promessa de Pagamento', 'Divergente', 'Quitado']);
+        ;
 
       if (fundFilter === 'Cordel') {
         contractsQuery = contractsQuery.eq('source_system', 'CORDEL');
