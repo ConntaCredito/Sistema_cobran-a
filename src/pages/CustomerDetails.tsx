@@ -269,12 +269,15 @@ export const CustomerDetails = () => {
   
   let isDesligado = false;
   let isAfastado = false;
+  let tipoEventoGeral = '';
+
   contracts.forEach(c => {
     if (c.dismissal_date && new Date(c.dismissal_date).getFullYear() > 1970) isDesligado = true;
     
     if (c.metadata) {
       if (typeof c.metadata.tipo_evento === 'string') {
         const evt = c.metadata.tipo_evento.toLowerCase();
+        if (!tipoEventoGeral) tipoEventoGeral = String(c.metadata.tipo_evento).toUpperCase();
         if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
         if (evt.includes('afastamento')) isAfastado = true;
       }
@@ -367,6 +370,12 @@ export const CustomerDetails = () => {
                 {qualLabel}
               </div>
               
+              {tipoEventoGeral && (
+                <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 'bold', fontSize: '0.9rem', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                  {tipoEventoGeral}
+                </div>
+              )}
+
               {isDesligado && (
                 <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 'bold', fontSize: '0.9rem', border: '1px solid #fca5a5' }}>
                   DESLIGADO
