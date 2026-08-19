@@ -152,7 +152,6 @@ export const CustomersList = () => {
         }
 
         // Tenta serial Excel da planilha BDR
-        const meta = c.metadata || {};
         const serial = meta['dt_venc_origem'] || meta['dt_venc_ajustado'] || meta['DT VENC ORIGEM'] || meta['DT VENC AJUSTADO'];
         if (serial && !isNaN(Number(serial)) && Number(serial) > 30000 && Number(serial) < 60000) {
           const days = Math.floor(Number(serial) - 25569);
