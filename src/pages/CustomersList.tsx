@@ -55,72 +55,31 @@ export const CustomersList = () => {
       let allData: any[] = [];
 
       try {
-        let page = 0;
-        const pageSize = 500;
-        let hasMore = true;
+        setProgressMsg(`Carregando base de dados otimizada (via Supabase RPC)...`);
+        
+        const { data, error } = await supabase.rpc('get_consolidated_customers_v1', {
+          p_admin: isAdmin,
+          p_owner_id: profile.id,
+          p_operator_filter: operatorFilter,
+          p_search_term: searchTerm.trim()
+        });
 
-        while (hasMore) {
-          setProgressMsg(`Carregando base de dados... (${allData.length} registros)`);
-          
-          let query = supabase
-            .from('customers')
-            .select('id, cpf, full_name, phone, email, return_date, owner_id, profiles(username)')
-            .order('created_at', { ascending: false })
-            .range(page * pageSize, (page + 1) * pageSize - 1);
-            
-          if (!isAdmin) {
-            query = query.or(`owner_id.eq.${profile.id},owner_id.is.null`);
-          } else {
-            if (operatorFilter === 'SemDono') {
-              query = query.is('owner_id', null);
-            } else if (operatorFilter !== 'Todos') {
-              query = query.eq('owner_id', operatorFilter);
+        if (error) {
+           console.error("ERRO GRAVE AO BUSCAR:", error);
+           setProgressMsg(`Erro: ${error.message}`);
+           setLoading(false);
+           return;
+        }
+
+        if (data) {
+          if (typeof data === 'string') {
+            try {
+              allData = JSON.parse(data);
+            } catch(e) {
+              allData = data as any;
             }
-          }
-          
-          if (searchTerm.trim().length > 0) {
-            const term = searchTerm.trim();
-            const onlyNumbers = term.replace(/\D/g, '');
-            
-            if (onlyNumbers.length > 0) {
-              query = query.or(`full_name.ilike.%${term}%,cpf.ilike.%${term}%,cpf.ilike.%${onlyNumbers}%`);
-            } else {
-              query = query.or(`full_name.ilike.%${term}%`);
-            }
-          }
-          
-          const { data: custData, error } = await query;
-          if (error) {
-             console.error("ERRO GRAVE AO BUSCAR:", error);
-             setProgressMsg(`Erro: ${error.message}`);
-             hasMore = false;
-             break;
-          }
-          
-          if (custData && custData.length > 0) {
-            const customerIds = custData.map(c => c.id);
-            
-            let contractsQuery = supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, fund, companies ( razao_social )').in('customer_id', customerIds);
-
-            const [contractsRes, historyRes] = await Promise.all([
-              contractsQuery,
-              supabase.from('collection_history').select('customer_id, phase, created_at').in('customer_id', customerIds)
-            ]);
-            
-            if (contractsRes.error) throw contractsRes.error;
-            if (historyRes.error) throw historyRes.error;
-            
-            const mergedData = custData.map(c => ({
-              ...c,
-              contracts: contractsRes.data?.filter(ct => ct.customer_id === c.id) || [],
-              collection_history: historyRes.data?.filter(h => h.customer_id === c.id) || []
-            }));
-
-            allData = [...allData, ...mergedData];
-            page++;
-            if (custData.length < pageSize) hasMore = false;
-          } else {
-            hasMore = false;
+          } else if (Array.isArray(data)) {
+            allData = data;
           }
         }
       } catch (e: any) {
