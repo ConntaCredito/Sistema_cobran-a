@@ -255,17 +255,6 @@ export const KanbanBoard = ({ rawData = [], onRefresh }: { rawData?: any[], onRe
                                 </span>
                               )}
                               
-                              {customer.isDesligado && (
-                                <span style={{ fontSize: '0.65rem', background: '#fee2e2', color: '#b91c1c', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 'bold', border: '1px solid #fca5a5' }}>
-                                  DESLIGADO
-                                </span>
-                              )}
-
-                              {customer.isAfastado && !customer.isDesligado && (
-                                <span style={{ fontSize: '0.65rem', background: '#fef3c7', color: '#b45309', padding: '0.1rem 0.3rem', borderRadius: '4px', fontWeight: 'bold', border: '1px solid #fde68a' }}>
-                                  AFASTADO
-                                </span>
-                              )}
                             </div>
 
                             {(customer.tipoEvento || customer.vencimentoBase || customer.dataEvento) && (
