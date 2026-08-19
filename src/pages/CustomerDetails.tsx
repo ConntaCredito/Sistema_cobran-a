@@ -271,25 +271,11 @@ export const CustomerDetails = () => {
     qualBg = 'rgba(255, 255, 255, 0.05)';
   }
   
-  let isDesligado = false;
-  let isAfastado = false;
   let tipoEventoGeral = '';
 
   contracts.forEach(c => {
-    if (c.dismissal_date && new Date(c.dismissal_date).getFullYear() > 1970) isDesligado = true;
-    
-    if (c.metadata) {
-      if (typeof c.metadata.tipo_evento === 'string') {
-        const evt = c.metadata.tipo_evento.toLowerCase();
-        if (!tipoEventoGeral) tipoEventoGeral = String(c.metadata.tipo_evento).toUpperCase();
-        if (evt.includes('rescisao') || evt.includes('demissao') || evt.includes('desligamento')) isDesligado = true;
-        if (evt.includes('afastamento')) isAfastado = true;
-      }
-      
-      const dtDesligamento = c.metadata['entrada_afastamento/rescisao'] || c.metadata['dt_desligamento'] || c.metadata['ENTRADA AFASTAMENTO/RESCISAO'] || c.metadata['DT DESLIGAMENTO'];
-      if (dtDesligamento && !isNaN(Number(dtDesligamento)) && Number(dtDesligamento) > 30000) {
-         isDesligado = true;
-      }
+    if (c.metadata && typeof c.metadata.tipo_evento === 'string') {
+      if (!tipoEventoGeral) tipoEventoGeral = String(c.metadata.tipo_evento).toUpperCase();
     }
   });
 
