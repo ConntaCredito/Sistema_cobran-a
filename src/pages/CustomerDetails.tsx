@@ -90,7 +90,7 @@ export const CustomerDetails = () => {
             let discrepancyType = null;
             if (bdr && cordel) {
               if (bdr.status !== cordel.status || Number(bdr.outstanding_balance) !== Number(cordel.outstanding_balance)) {
-                if (base.fund === 'Alcar') {
+                if (Number(bdr.outstanding_balance) > Number(cordel.outstanding_balance) * 1.5) {
                   discrepancyType = 'PARCELA ISOLADA';
                 } else {
                   discrepancyType = 'DIVERGENTE';
