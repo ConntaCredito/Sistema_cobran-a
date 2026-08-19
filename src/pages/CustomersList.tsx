@@ -14,7 +14,7 @@ export const CustomersList = () => {
   const [loading, setLoading] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
 
-  const [fundFilter, setFundFilter] = useState<'Todos' | 'Alcar' | 'Alpha'>('Todos');
+  const [fundFilter, setFundFilter] = useState<'Todos' | 'Alcar' | 'Alpha' | 'Cordel'>('Todos');
   const [operatorFilter, setOperatorFilter] = useState<string>('Todos');
   const [operatorsList, setOperatorsList] = useState<{id: string, username: string}[]>([]);
 
@@ -102,7 +102,9 @@ export const CustomersList = () => {
             
             let contractsQuery = supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, fund, companies ( razao_social )').in('customer_id', customerIds);
             
-            if (fundFilter !== 'Todos') {
+            if (fundFilter === 'Cordel') {
+              contractsQuery = contractsQuery.eq('source_system', 'CORDEL');
+            } else if (fundFilter !== 'Todos') {
               contractsQuery = contractsQuery.eq('fund', fundFilter);
             }
 
@@ -176,7 +178,8 @@ export const CustomersList = () => {
             Object.values(grouped).forEach(group => {
               const bdr = group.find((c: any) => c.source_system === 'BDR');
               const cordel = group.find((c: any) => c.source_system === 'CORDEL');
-              const base = cordel || bdr || group[0];
+              // PRIORIDADE BDR para exibir valores totais da dívida corretamente
+              const base = bdr || cordel || group[0];
 
               // Só inclui se estiver vencido
               if (!isContractOverdue(base)) return;
@@ -248,6 +251,7 @@ export const CustomersList = () => {
               <option value="Todos">Todos os Fundos</option>
               <option value="Alcar">Fundo Alcar</option>
               <option value="Alpha">Fundo Alpha</option>
+              <option value="Cordel">Planilha Cordel</option>
             </select>
 
             {profile?.role === 'ADMIN' && (

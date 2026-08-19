@@ -28,7 +28,7 @@ export const Dashboard = () => {
 
   const [statusData, setStatusData] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
-  const [fundFilter, setFundFilter] = useState<'Todos' | 'Alcar' | 'Alpha'>('Todos');
+  const [fundFilter, setFundFilter] = useState<'Todos' | 'Alcar' | 'Alpha' | 'Cordel'>('Todos');
 
   useEffect(() => {
     async function fetchStats() {
@@ -56,7 +56,9 @@ export const Dashboard = () => {
         .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata, fund')
         .in('status', ['Em atraso', 'Promessa de Pagamento', 'Divergente', 'Quitado']);
 
-      if (fundFilter !== 'Todos') {
+      if (fundFilter === 'Cordel') {
+        contractsQuery = contractsQuery.eq('source_system', 'CORDEL');
+      } else if (fundFilter !== 'Todos') {
         contractsQuery = contractsQuery.eq('fund', fundFilter);
       }
 
@@ -147,7 +149,9 @@ export const Dashboard = () => {
               Object.values(grouped).forEach(group => {
                 const bdr = group.find(c => c.source_system === 'BDR');
                 const cordel = group.find(c => c.source_system === 'CORDEL');
-                const base = cordel || bdr || group[0];
+                // PRIORIDADE PARA BDR: O BDR sempre tem a dívida inteira (total), 
+                // enquanto o CORDEL (no caso da Alcar) envia apenas a parcela solta.
+                const base = bdr || cordel || group[0];
                 
                 const statusStr = String(base.status).toLowerCase();
                 const valAberto = Number(base.outstanding_balance) || 0;
@@ -271,6 +275,7 @@ export const Dashboard = () => {
             <option value="Todos">Todos os Fundos</option>
             <option value="Alcar">Fundo Alcar</option>
             <option value="Alpha">Fundo Alpha</option>
+            <option value="Cordel">Planilha Cordel</option>
           </select>
         </div>
       </div>
