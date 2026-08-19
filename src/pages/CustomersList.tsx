@@ -101,12 +101,6 @@ export const CustomersList = () => {
             const customerIds = custData.map(c => c.id);
             
             let contractsQuery = supabase.from('contracts').select('customer_id, id, contract_number, status, contracted_amount, outstanding_balance, source_system, due_date, dismissal_date, metadata, fund, companies ( razao_social )').in('customer_id', customerIds);
-            
-            if (fundFilter === 'Cordel') {
-              contractsQuery = contractsQuery.eq('source_system', 'CORDEL');
-            } else if (fundFilter !== 'Todos') {
-              contractsQuery = contractsQuery.eq('fund', fundFilter);
-            }
 
             const [contractsRes, historyRes] = await Promise.all([
               contractsQuery,
@@ -180,9 +174,20 @@ export const CustomersList = () => {
               const cordel = group.find((c: any) => c.source_system === 'CORDEL');
               // PRIORIDADE BDR para exibir valores totais da dívida corretamente
               const base = bdr || cordel || group[0];
+              
+              let valAberto = Number(base.outstanding_balance) || 0;
+              if (fundFilter === 'Cordel' && cordel) {
+                 const meta = (bdr && bdr.metadata) || {};
+                 let qtdParcelas = parseInt((bdr && bdr.total_installments) || meta.n_parcelas_lastro || meta.pz_total || 1, 10);
+                 if (isNaN(qtdParcelas) || qtdParcelas <= 0) qtdParcelas = 1;
+                 valAberto = Number(cordel.outstanding_balance) * qtdParcelas;
+              }
+
+              // Clonamos o base para sobrescrever o saldo devedor se necessário
+              const baseToSave = { ...base, outstanding_balance: valAberto };
 
               // Só inclui se estiver vencido
-              if (!isContractOverdue(base)) return;
+              if (!isContractOverdue(baseToSave)) return;
 
               let isDivergent = false;
               if (bdr && cordel) {
@@ -191,15 +196,24 @@ export const CustomersList = () => {
                 }
               }
               consolidatedContracts.push({
-                ...base,
-                status: isDivergent ? 'Divergente' : base.status
+                ...baseToSave,
+                status: isDivergent ? 'Divergente' : baseToSave.status
               });
             });
 
-            // Se depois de filtrar os contratos em dia não sobrar nada, não mostra o cliente
-            if (consolidatedContracts.length === 0) return null;
+            // Filtro de Fundo (Em memória, pois cruzamos as planilhas)
+            const filteredContracts = consolidatedContracts.filter(c => {
+              if (fundFilter === 'Todos') return true;
+              if (fundFilter === 'Cordel') return c.cordelData != null || c.source_system === 'CORDEL';
+              // Alcar ou Alpha
+              if (c.fund === fundFilter) return true;
+              if (c.bdrData && c.bdrData.fund === fundFilter) return true;
+              return false;
+            });
 
-            return { ...customer, contracts: consolidatedContracts };
+            if (filteredContracts.length === 0) return null;
+
+            return { ...customer, contracts: filteredContracts };
           })
           .filter(Boolean);
 

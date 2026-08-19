@@ -51,16 +51,11 @@ export const Dashboard = () => {
       } catch (_) {}
 
       // Busca direto nos contratos relevantes — sem loop de páginas de customers
+      // Removemos o filtro de status e fundos do banco para podermos cruzar as planilhas
+      // na memória. BDR tem as parcelas, Cordel tem o valor isolado. Precisamos de ambos!
       let contractsQuery = supabase
         .from('contracts')
-        .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata, fund')
-        ;
-
-      if (fundFilter === 'Cordel') {
-        contractsQuery = contractsQuery.eq('source_system', 'CORDEL');
-      } else if (fundFilter !== 'Todos') {
-        contractsQuery = contractsQuery.eq('fund', fundFilter);
-      }
+        .select('customer_id, outstanding_balance, status, source_system, contract_number, due_date, metadata, fund');
 
       // Filtro por carteira se não for ADMIN
       let allData: any[] = [];
@@ -149,12 +144,31 @@ export const Dashboard = () => {
               Object.values(grouped).forEach(group => {
                 const bdr = group.find(c => c.source_system === 'BDR');
                 const cordel = group.find(c => c.source_system === 'CORDEL');
-                // PRIORIDADE PARA BDR: O BDR sempre tem a dívida inteira (total), 
-                // enquanto o CORDEL (no caso da Alcar) envia apenas a parcela solta.
+                
+                // APLICAÇÃO DO FILTRO (Em memória, pois já temos BDR + Cordel juntos)
+                if (fundFilter === 'Cordel' && !cordel) return;
+                if (fundFilter === 'Alcar' && !group.some(c => c.fund === 'Alcar')) return;
+                if (fundFilter === 'Alpha' && !group.some(c => c.fund === 'Alpha')) return;
+
+                // PRIORIDADE PARA BDR: O BDR sempre tem a dívida inteira (total)
                 const base = bdr || cordel || group[0];
                 
                 const statusStr = String(base.status).toLowerCase();
-                const valAberto = Number(base.outstanding_balance) || 0;
+                let valAberto = 0;
+
+                // CÁLCULO INTELIGENTE DO CORDEL:
+                // O Cordel manda apenas o valor da parcela. Se estamos filtrando pelo Cordel
+                // e o usuário quer ver os valores reais multiplicados pelas parcelas (do BDR):
+                if (fundFilter === 'Cordel' && cordel) {
+                   const meta = (bdr && bdr.metadata) || {};
+                   let qtdParcelas = parseInt((bdr && bdr.total_installments) || meta.n_parcelas_lastro || meta.pz_total || 1, 10);
+                   if (isNaN(qtdParcelas) || qtdParcelas <= 0) qtdParcelas = 1;
+                   
+                   valAberto = Number(cordel.outstanding_balance) * qtdParcelas;
+                } else {
+                   // Para BDR (Alcar/Alpha) ou padrão, usa o valor total do BDR que já vem certo
+                   valAberto = Number(base.outstanding_balance) || 0;
+                }
                 
                 // Determinar a data de vencimento real (campo direto ou Excel serial do BDR)
                 let dueDate: Date | null = null;
