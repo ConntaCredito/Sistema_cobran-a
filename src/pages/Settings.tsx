@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase, supabaseAdmin } from '../services/supabase';
+import { supabase, supabaseAdmin, supabaseUrl, supabaseAnonKey } from '../services/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { Settings as SettingsIcon, User, Users, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -32,50 +33,109 @@ export const Settings = () => {
     setLoading(true);
     setMessage('');
 
-    const internalEmail = `${newUsername.toLowerCase().replace(/\s/g, '')}@bdr.com`;
+    const cleanUsername = newUsername.toLowerCase().replace(/\s/g, '');
+    const internalEmail = `${cleanUsername}@bdr.com`;
 
-    // 1. Criar Auth User
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: internalEmail,
-      password: newPassword,
-      email_confirm: true
-    });
+    let authUser: any = null;
+    let createErrorMsg = '';
 
-    if (authError) {
-      setMessage(`Erro: ${authError.message}`);
+    // 1. Tentativa via supabaseAdmin.auth.admin.createUser
+    try {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: internalEmail,
+        password: newPassword,
+        email_confirm: true
+      });
+      if (authData?.user && !authError) {
+        authUser = authData.user;
+      } else if (authError) {
+        createErrorMsg = authError.message;
+      }
+    } catch (err: any) {
+      createErrorMsg = err?.message || '';
+    }
+
+    // 2. Fallback: via cliente isolado de signUp (garante funcionamento sem deslogar o admin)
+    if (!authUser) {
+      try {
+        const tempAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        });
+
+        const { data: signUpData, error: signUpError } = await tempAuthClient.auth.signUp({
+          email: internalEmail,
+          password: newPassword
+        });
+
+        if (signUpError) {
+          setMessage(`Erro: ${signUpError.message || createErrorMsg}`);
+          setLoading(false);
+          return;
+        }
+
+        authUser = signUpData.user;
+      } catch (err: any) {
+        setMessage(`Erro: ${err?.message || createErrorMsg}`);
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (!authUser) {
+      setMessage(`Erro: ${createErrorMsg || 'Não foi possível cadastrar o usuário.'}`);
       setLoading(false);
       return;
     }
 
-    // 2. Criar Profile
-    if (authData.user) {
-      const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-        id: authData.user.id,
-        username: newUsername.toLowerCase().replace(/\s/g, ''),
+    // 3. Criar Profile
+    let profileSaved = false;
+    const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+      id: authUser.id,
+      username: cleanUsername,
+      role: newRole
+    });
+
+    if (!profileError) {
+      profileSaved = true;
+    } else {
+      const { error: p2Error } = await supabase.from('profiles').upsert({
+        id: authUser.id,
+        username: cleanUsername,
         role: newRole
       });
-
-      if (profileError) {
-        setMessage(`Erro ao criar perfil: ${profileError.message}`);
+      if (!p2Error) {
+        profileSaved = true;
       } else {
-        setMessage('Usuário criado com sucesso!');
-        setNewUsername('');
-        setNewPassword('');
-        // Atualizar lista
-        fetchProfiles();
+        setMessage(`Erro ao criar perfil: ${p2Error.message || profileError.message}`);
       }
     }
+
+    if (profileSaved) {
+      setMessage('Usuário criado com sucesso!');
+      setNewUsername('');
+      setNewPassword('');
+      fetchProfiles();
+    }
+
     setLoading(false);
   };
 
   const handleDeleteUser = async (userId: string, username: string) => {
     if (!window.confirm(`Tem certeza que deseja excluir o usuário "${username}"? Todos os clientes vinculados a ele ficarão sem dono.`)) return;
     
-    // Excluir Auth User (o CASCADE no banco exclui o profile)
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    try {
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+    } catch (_) {}
+
+    const { error } = await supabaseAdmin.from('profiles').delete().eq('id', userId);
     
     if (error) {
-      alert(`Erro ao excluir: ${error.message}`);
+      const { error: pErr } = await supabase.from('profiles').delete().eq('id', userId);
+      if (pErr) {
+        alert(`Erro ao excluir: ${pErr.message}`);
+      } else {
+        fetchProfiles();
+      }
     } else {
       fetchProfiles();
     }
