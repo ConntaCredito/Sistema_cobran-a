@@ -29,13 +29,20 @@ export const CustomerDetails = () => {
     async function fetchData() {
       if (!cpf) return;
 
+      const cleanDoc = cpf.trim();
+      const onlyDigits = cleanDoc.replace(/\D/g, '');
+      let queryFilter = `cpf.eq.${cleanDoc}`;
+      if (onlyDigits.length > 0 && onlyDigits !== cleanDoc) {
+        queryFilter += `,cpf.eq.${onlyDigits}`;
+      }
+
       // Busca customer e contratos em PARALELO (2x mais rápido que serial)
       const [custRes, profilesRes] = await Promise.all([
         supabase.from('customers').select(`
           *,
           profiles (username),
           collection_history (*)
-        `).eq('cpf', cpf).single(),
+        `).or(queryFilter).limit(1).maybeSingle(),
         isAdmin ? supabase.from('profiles').select('*') : Promise.resolve({ data: [] })
       ]);
 

@@ -59,8 +59,26 @@ export const Search = () => {
       }
     }
 
+    // 3. Tentar buscar por CNPJ ou Razão Social na tabela companies
+    let cnpjOrQuery = `cnpj.eq.${searchTerm}`;
+    if (onlyNumbers.length > 0) {
+      cnpjOrQuery += `,cnpj.eq.${onlyNumbers}`;
+    }
+    const { data: companyData } = await supabase
+      .from('companies')
+      .select('id')
+      .or(cnpjOrQuery)
+      .limit(1)
+      .maybeSingle();
+
+    if (companyData) {
+      setLoading(false);
+      navigate(`/company/${companyData.id}`);
+      return;
+    }
+
     setLoading(false);
-    setError('Nenhum cliente ou contrato encontrado com esse termo.');
+    setError('Nenhum cliente, contrato ou empresa encontrada com esse termo.');
   };
 
   return (
