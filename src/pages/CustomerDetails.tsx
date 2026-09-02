@@ -45,9 +45,9 @@ export const CustomerDetails = () => {
       if (!custData) return;
 
       // Regra de Acesso:
-      // Admin: Acesso total
-      // User Padrão: Só acessa se for o dono (owner_id === profile.id) ou se não tiver dono (owner_id === null)
-      if (!isAdmin && custData.owner_id && custData.owner_id !== profile?.id) {
+      // Admin: Acesso total irrestrito
+      // User Padrão: Só acessa se for o dono estrito (owner_id === profile.id)
+      if (!isAdmin && custData.owner_id !== profile?.id) {
         setAccessDenied(true);
         return;
       }
