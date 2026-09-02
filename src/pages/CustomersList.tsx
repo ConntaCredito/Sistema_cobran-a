@@ -31,7 +31,7 @@ export const CustomersList = () => {
     async function fetchCustomers() {
       if (!profile) return;
       
-      const CACHE_KEY = `customers_list_v1_${profile.id}_${fundFilter}_${operatorFilter}`;
+      const CACHE_KEY = `customers_list_v5_${profile.id}_${fundFilter}_${operatorFilter}`;
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
       // Só usamos cache se não houver termo de busca (para a lista principal)

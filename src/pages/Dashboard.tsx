@@ -36,7 +36,7 @@ export const Dashboard = () => {
       setErrorMsg('');
 
       // Cache de 5 minutos no sessionStorage para evitar recarregar toda navegação
-      const CACHE_KEY = `dashboard_stats_v4_${profile.id}_${fundFilter}`;
+      const CACHE_KEY = `dashboard_stats_v5_${profile.id}_${fundFilter}`;
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
       try {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -263,7 +263,7 @@ export const Dashboard = () => {
 
         // Salva no cache por 5 minutos
         try {
-          const CACHE_KEY = `dashboard_stats_v4_${profile.id}_${fundFilter}`; // v4 para invalidar cache antigo automaticamente
+          const CACHE_KEY = `dashboard_stats_v5_${profile.id}_${fundFilter}`; // v4 para invalidar cache antigo automaticamente
           const newStats = {
             totalContracts: totalContractsNum, totalContracted: contracted, totalBalance: balance,
             totalRecovered: statusMap['Pagamento Realizado'] || 0, alerts: 0, promisesCount: 0,
