@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase, supabaseAdmin } from '../services/supabase';
-import { ArrowLeft, User, Briefcase, FileText, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, User, Briefcase, FileText, UserPlus, Users, Plus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const CustomerDetails = () => {
@@ -14,6 +14,9 @@ export const CustomerDetails = () => {
   const [contracts, setContracts] = useState<any[]>([]);
   const [selectedContract, setSelectedContract] = useState<any | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [unassignedCustomer, setUnassignedCustomer] = useState<any | null>(null);
+  const [foreignOwner, setForeignOwner] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState(false);
   
   // Para ADMINs repassarem carteira
   const [allProfiles, setAllProfiles] = useState<any[]>([]);
@@ -45,11 +48,23 @@ export const CustomerDetails = () => {
       if (!custData) return;
 
       // Regra de Acesso:
-      // Admin: Acesso total irrestrito
-      // User Padrão: Só acessa se for o dono estrito (owner_id === profile.id)
-      if (!isAdmin && custData.owner_id !== profile?.id) {
-        setAccessDenied(true);
-        return;
+      // 1. Admin: Acesso total irrestrito
+      // 2. User Padrão:
+      //    - Se for o dono (owner_id === profile.id): Acesso liberado
+      //    - Se não tiver dono (owner_id === null): Permite visualizar tela de "Assumir / Puxar Cliente"
+      //    - Se pertencer a outro operador: Bloqueio (Acesso Negado)
+      if (!isAdmin) {
+        if (!custData.owner_id) {
+          setUnassignedCustomer(custData);
+          setAccessDenied(false);
+          setForeignOwner(null);
+          return;
+        } else if (custData.owner_id !== profile?.id) {
+          setForeignOwner(custData.profiles?.username || 'Outro Operador');
+          setAccessDenied(true);
+          setUnassignedCustomer(null);
+          return;
+        }
       }
 
       // Busca contratos em paralelo com setCustomer (não bloqueia a UI)
@@ -120,14 +135,69 @@ export const CustomerDetails = () => {
     }
   }, [cpf, isAdmin, profile]);
 
+  if (unassignedCustomer) {
+    return (
+      <div className="main-content" style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <button className="btn-secondary mb-4" onClick={() => navigate(-1)}><ArrowLeft size={18} /> Voltar</button>
+        <div className="glass-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+            <UserPlus size={32} />
+          </div>
+          <h2 style={{ marginBottom: '0.5rem' }}>Cliente Disponível na Base</h2>
+          <p className="text-muted mb-4" style={{ fontSize: '0.95rem' }}>
+            O cliente <strong>{unassignedCustomer.full_name}</strong> (CPF: {unassignedCustomer.cpf}) está atualmente <strong>sem operador responsável</strong>.
+          </p>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.25rem', borderRadius: 'var(--radius-md)', marginBottom: '2rem', textAlign: 'left', border: '1px solid var(--color-border)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              <div>
+                <span className="text-muted" style={{ fontSize: '0.8rem', display: 'block' }}>Nome do Cliente</span>
+                <strong style={{ fontSize: '1rem' }}>{unassignedCustomer.full_name}</strong>
+              </div>
+              <div>
+                <span className="text-muted" style={{ fontSize: '0.8rem', display: 'block' }}>CPF</span>
+                <strong style={{ fontSize: '1rem' }}>{unassignedCustomer.cpf}</strong>
+              </div>
+              <div>
+                <span className="text-muted" style={{ fontSize: '0.8rem', display: 'block' }}>Status da Carteira</span>
+                <span className="badge badge--neutral" style={{ marginTop: '0.25rem' }}>Sem Dono / Disponível</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-muted mb-4" style={{ fontSize: '0.9rem' }}>
+            Deseja puxar este cliente para a sua carteira de atendimento? Ao assumir, você terá acesso completo à ficha, histórico e contratos, e ele passará a constar no seu <strong>Kanban na Central de Clientes</strong>.
+          </p>
+
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <button className="btn-secondary" onClick={() => navigate(-1)} style={{ padding: '0.75rem 1.5rem' }}>
+              Cancelar
+            </button>
+            <button 
+              className="btn-primary" 
+              style={{ padding: '0.75rem 2rem', fontSize: '1rem' }}
+              disabled={claiming}
+              onClick={handleClaimCustomer}
+            >
+              {claiming ? 'Puxando Cliente...' : <><Plus size={18} /> Assumir / Puxar Cliente para Minha Carteira</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (accessDenied) {
     return (
-      <div className="main-content">
+      <div className="main-content" style={{ maxWidth: '700px', margin: '0 auto' }}>
         <button className="btn-secondary mb-4" onClick={() => navigate(-1)}><ArrowLeft size={18} /> Voltar</button>
-        <div className="glass-card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-          <h2 style={{ color: 'var(--color-danger)', marginBottom: '1rem' }}>Acesso Negado</h2>
-          <p className="text-muted">
-            Este cliente pertence à carteira de outro operador. Apenas o dono ou um administrador pode visualizar seus detalhes.
+        <div className="glass-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+          <h2 style={{ color: 'var(--color-danger)', marginBottom: '1rem' }}>Acesso Restrito</h2>
+          <p className="text-muted mb-2">
+            Este cliente pertence à carteira de atendimento de <strong>@{foreignOwner}</strong>.
+          </p>
+          <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+            Apenas o operador responsável ou um administrador pode visualizar ou movimentar esta ficha.
           </p>
         </div>
       </div>
@@ -161,6 +231,39 @@ export const CustomerDetails = () => {
       console.error(error);
       alert('Erro de permissão! O banco de dados bloqueou a alteração. Falta a regra de UPDATE.');
     }
+  };
+
+  const handleClaimCustomer = async () => {
+    if (!profile || !unassignedCustomer) return;
+    setClaiming(true);
+
+    const { error } = await supabaseAdmin
+      .from('customers')
+      .update({ owner_id: profile.id })
+      .eq('id', unassignedCustomer.id);
+
+    if (error) {
+      alert(`Erro ao assumir cliente: ${error.message}`);
+      setClaiming(false);
+      return;
+    }
+
+    // Registrar no histórico de cobrança
+    await supabase.from('collection_history').insert({
+      customer_id: unassignedCustomer.id,
+      title: 'Auto-Atribuição de Carteira',
+      description: `O operador @${profile.username} assumiu este cliente da base geral.`,
+      responsible: profile.username
+    });
+
+    // Limpar cache de clientes para aparecer imediatamente no Kanban
+    try {
+      sessionStorage.clear();
+    } catch (_) {}
+
+    setUnassignedCustomer(null);
+    setAccessDenied(false);
+    window.location.reload();
   };
 
   const handleTransferOwnership = async (newOwnerId: string) => {
