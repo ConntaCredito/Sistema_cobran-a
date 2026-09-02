@@ -63,9 +63,22 @@ export const Dashboard = () => {
         const { data: myCusts } = await supabase
           .from('customers')
           .select('id')
-          .or(`owner_id.eq.${profile.id},owner_id.is.null`);
+          .eq('owner_id', profile.id);
         const ids = (myCusts || []).map((c: any) => c.id);
-        if (ids.length === 0) return;
+        if (ids.length === 0) {
+          setStats({
+            activePortfolio: 0,
+            recoveredAmount: 0,
+            totalAgreements: 0,
+            overdueRate: 0,
+            totalCustomers: 0,
+            totalContracts: 0,
+            inNegotiation: 0
+          });
+          setStatusData([]);
+          setLoading(false);
+          return;
+        }
         contractsQuery = contractsQuery.in('customer_id', ids);
       }
 

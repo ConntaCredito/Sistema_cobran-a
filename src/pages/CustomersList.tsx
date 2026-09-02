@@ -125,6 +125,9 @@ export const CustomersList = () => {
       if (allData.length >= 0) {
         const consolidatedCustomers = allData
           .map((customer: any) => {
+            // Operadores padrão (não ADMIN) só têm acesso aos clientes vinculados exclusivamente a eles
+            if (!isAdmin && customer.owner_id !== profile.id) return null;
+
             if (!customer.contracts || customer.contracts.length === 0) return null;
 
             const grouped: Record<string, any[]> = {};
@@ -251,7 +254,7 @@ export const CustomersList = () => {
             <button 
               className="btn-secondary"
               onClick={() => {
-                sessionStorage.removeItem(`customers_list_v1_${profile?.id}_${fundFilter}_${operatorFilter}`);
+                sessionStorage.clear();
                 setSearchTerm(searchTerm + ' '); // trick to trigger refresh
                 setTimeout(() => setSearchTerm(searchTerm.trim()), 100);
               }}
