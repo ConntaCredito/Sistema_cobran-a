@@ -67,16 +67,22 @@ export const Dashboard = () => {
         const ids = (myCusts || []).map((c: any) => c.id);
         if (ids.length === 0) {
           setStats({
-            activePortfolio: 0,
-            recoveredAmount: 0,
-            totalAgreements: 0,
-            overdueRate: 0,
-            totalCustomers: 0,
             totalContracts: 0,
-            inNegotiation: 0
+            totalContracted: 0,
+            totalBalance: 0,
+            totalRecovered: 0,
+            alerts: 0,
+            promisesCount: 0,
+            promisesValue: 0,
+            divergentVolume: 0,
+            negociandoValue: 0,
+            atendimentoValue: 0,
+            naoContactadoValue: 0,
+            naoRespondeuValue: 0,
+            inviavelValue: 0,
+            numeroIncorretoValue: 0
           });
           setStatusData([]);
-          setLoading(false);
           return;
         }
         contractsQuery = contractsQuery.in('customer_id', ids);
