@@ -142,6 +142,39 @@ export const CustomerDetails = () => {
     }
   }, [cpf, isAdmin, profile]);
 
+  const handleClaimCustomer = async () => {
+    if (!profile || !unassignedCustomer) return;
+    setClaiming(true);
+
+    const { error } = await supabaseAdmin
+      .from('customers')
+      .update({ owner_id: profile.id })
+      .eq('id', unassignedCustomer.id);
+
+    if (error) {
+      alert(`Erro ao assumir cliente: ${error.message}`);
+      setClaiming(false);
+      return;
+    }
+
+    // Registrar no histórico de cobrança
+    await supabase.from('collection_history').insert({
+      customer_id: unassignedCustomer.id,
+      title: 'Auto-Atribuição de Carteira',
+      description: `O operador @${profile.username} assumiu este cliente da base geral.`,
+      responsible: profile.username
+    });
+
+    // Limpar cache de clientes para aparecer imediatamente no Kanban
+    try {
+      sessionStorage.clear();
+    } catch (_) {}
+
+    setUnassignedCustomer(null);
+    setAccessDenied(false);
+    window.location.reload();
+  };
+
   if (unassignedCustomer) {
     return (
       <div className="main-content" style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -240,38 +273,7 @@ export const CustomerDetails = () => {
     }
   };
 
-  const handleClaimCustomer = async () => {
-    if (!profile || !unassignedCustomer) return;
-    setClaiming(true);
 
-    const { error } = await supabaseAdmin
-      .from('customers')
-      .update({ owner_id: profile.id })
-      .eq('id', unassignedCustomer.id);
-
-    if (error) {
-      alert(`Erro ao assumir cliente: ${error.message}`);
-      setClaiming(false);
-      return;
-    }
-
-    // Registrar no histórico de cobrança
-    await supabase.from('collection_history').insert({
-      customer_id: unassignedCustomer.id,
-      title: 'Auto-Atribuição de Carteira',
-      description: `O operador @${profile.username} assumiu este cliente da base geral.`,
-      responsible: profile.username
-    });
-
-    // Limpar cache de clientes para aparecer imediatamente no Kanban
-    try {
-      sessionStorage.clear();
-    } catch (_) {}
-
-    setUnassignedCustomer(null);
-    setAccessDenied(false);
-    window.location.reload();
-  };
 
   const handleTransferOwnership = async (newOwnerId: string) => {
     const ownerToSet = newOwnerId === "" ? null : newOwnerId;
